@@ -16,20 +16,26 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (authError) {
-      setError(authError.message);
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
+
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Onbekende fout bij inloggen.";
+      setError(message);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.replace("/dashboard");
-    router.refresh();
   }
 
   async function handleDemoLogin() {
@@ -40,14 +46,14 @@ export default function LoginPage() {
       const response = await fetch("/api/dev-login", { method: "POST" });
       if (!response.ok) {
         setError("Demo login is niet beschikbaar.");
-        setLoading(false);
         return;
       }
-
       router.replace("/dashboard");
       router.refresh();
-    } catch {
-      setError("Kon demo login niet starten.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Kon demo login niet starten.";
+      setError(message);
+    } finally {
       setLoading(false);
     }
   }
