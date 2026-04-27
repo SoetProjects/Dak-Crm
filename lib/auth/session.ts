@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, isSupabaseReady } from "@/lib/supabase/server";
 import { hasDemoSession } from "@/lib/auth/demo-session";
 
 export type AppSession = {
@@ -8,9 +8,30 @@ export type AppSession = {
   companyId: string;
 };
 
+const UNAUTHENTICATED: AppSession = {
+  isAuthenticated: false,
+  isDemo: false,
+  email: "",
+  companyId: "",
+};
+
 export async function getAppSession(): Promise<AppSession> {
-  const supabase = await createClient();
   const demoSession = await hasDemoSession();
+
+  if (demoSession) {
+    return {
+      isAuthenticated: true,
+      isDemo: true,
+      email: "demo@dakcrm.local",
+      companyId: "demo-company",
+    };
+  }
+
+  if (!isSupabaseReady()) {
+    return UNAUTHENTICATED;
+  }
+
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -24,19 +45,5 @@ export async function getAppSession(): Promise<AppSession> {
     };
   }
 
-  if (demoSession) {
-    return {
-      isAuthenticated: true,
-      isDemo: true,
-      email: "demo@dakcrm.local",
-      companyId: "demo-company",
-    };
-  }
-
-  return {
-    isAuthenticated: false,
-    isDemo: false,
-    email: "",
-    companyId: "",
-  };
+  return UNAUTHENTICATED;
 }
