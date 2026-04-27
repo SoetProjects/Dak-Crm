@@ -38,6 +38,8 @@ const NAV_SECTIONS = [
       { href: "/instellingen", label: "Instellingen" },
     ],
   },
+  // Mobile routes (/mobile/*) are intentionally excluded from desktop nav.
+  // Field workers access them via their phone's browser automatically.
 ];
 
 export function AppSidebar() {

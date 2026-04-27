@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MobileRedirect } from "@/components/mobile/mobile-redirect";
 import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
@@ -125,6 +126,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <MobileRedirect to="/mobile" />
       <section>
         <h1 className="text-2xl font-semibold text-[var(--primary)]">Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500">

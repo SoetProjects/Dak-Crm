@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { MobileRedirect } from "@/components/mobile/mobile-redirect";
 import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
@@ -105,6 +106,7 @@ export default async function JobsPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
+      <MobileRedirect to="/mobile/jobs" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--primary)]">Werkbonnen</h1>
