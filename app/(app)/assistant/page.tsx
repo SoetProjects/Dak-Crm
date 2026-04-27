@@ -21,14 +21,14 @@ type Message = {
 // ─── Example questions ────────────────────────────────────────────────────────
 
 const EXAMPLES: { label: string; question: string }[] = [
-  { label: "Actieve klanten", question: "Laat me alle actieve klanten zien" },
+  { label: "Inactieve klanten", question: "Welke klanten zijn de afgelopen 30 dagen niet benaderd?" },
   { label: "Leads deze maand", question: "Welke leads zijn er binnengekomen deze maand?" },
-  { label: "Niet benaderd", question: "Welke klanten zijn de afgelopen 30 dagen niet benaderd?" },
   { label: "Jobs vandaag", question: "Welke werkbonnen staan er vandaag gepland?" },
   { label: "Open offertes", question: "Toon alle openstaande offertes" },
   { label: "Achterstallige facturen", question: "Welke facturen zijn te laat betaald?" },
   { label: "Zakelijke klanten", question: "Laat me alle zakelijke klanten zien" },
   { label: "Lopende werkbonnen", question: "Werkbonnen die momenteel in uitvoering zijn" },
+  { label: "Geen contact vorige maand", question: "Klanten zonder contact vorige maand" },
 ];
 
 // ─── Entity column definitions ────────────────────────────────────────────────
@@ -39,10 +39,10 @@ const COLUMNS: Record<CrmEntity, ColumnDef[]> = {
   customers: [
     { key: "name", label: "Naam" },
     { key: "customerType", label: "Type", format: (v) => ({ PRIVATE: "Particulier", BUSINESS: "Zakelijk", HOA: "VvE", CONTRACTOR: "Aannemer" })[String(v)] ?? String(v) },
-    { key: "contactPerson", label: "Contactpersoon" },
     { key: "billingCity", label: "Stad" },
     { key: "phone", label: "Telefoon" },
-    { key: "_count", label: "Jobs / Offertes", format: (v) => { const c = v as { jobs?: number; quotes?: number } | null; return c ? `${c.jobs ?? 0} / ${c.quotes ?? 0}` : "-"; } },
+    { key: "lastActivity", label: "Laatste contact", format: (v) => v ? new Date(String(v)).toLocaleDateString("nl-NL") : "Nog geen" },
+    { key: "_count", label: "Jobs / Offerte", format: (v) => { const c = v as { jobs?: number; quotes?: number } | null; return c ? `${c.jobs ?? 0} / ${c.quotes ?? 0}` : "-"; } },
   ],
   leads: [
     { key: "name", label: "Naam" },

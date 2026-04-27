@@ -27,13 +27,18 @@ export type DateRangePreset =
   | "last_30_days"
   | "overdue";
 
+export type CustomerStatusFilter = "active" | "inactive" | "archived";
+
 export type CrmFilters = {
   status?: string;
   dateRange?: DateRangePreset;
   search?: string;
   limit?: number;
   isActive?: boolean;
-  notContactedDays?: number;
+  // Customer-specific
+  customerStatus?: CustomerStatusFilter; // active | inactive (no recent contact) | archived
+  notContactedDays?: number;             // no job/quote activity in last N days
+  lastContactBefore?: DateRangePreset;   // no activity since start of this date range
   customerType?: string;
   jobType?: string;
 };
@@ -154,6 +159,24 @@ function validateFilters(entity: CrmEntity, filters: CrmFilters): CrmFilters {
     clean.isActive = Boolean(filters.isActive);
   }
 
+  if (filters.customerStatus) {
+    const validStatuses: CustomerStatusFilter[] = ["active", "inactive", "archived"];
+    if (validStatuses.includes(filters.customerStatus as CustomerStatusFilter)) {
+      clean.customerStatus = filters.customerStatus as CustomerStatusFilter;
+    }
+  }
+
+  if (filters.notContactedDays !== undefined) {
+    clean.notContactedDays = Math.min(Math.max(1, Math.floor(filters.notContactedDays)), 365);
+  }
+
+  if (filters.lastContactBefore) {
+    const validPresets = ["today","this_week","this_month","last_month","last_7_days","last_30_days","overdue"];
+    if (validPresets.includes(filters.lastContactBefore)) {
+      clean.lastContactBefore = filters.lastContactBefore;
+    }
+  }
+
   if (filters.customerType && ALLOWED_CUSTOMER_TYPES.includes(filters.customerType.toUpperCase())) {
     clean.customerType = filters.customerType.toUpperCase();
   }
@@ -162,58 +185,86 @@ function validateFilters(entity: CrmEntity, filters: CrmFilters): CrmFilters {
     clean.jobType = filters.jobType.toUpperCase();
   }
 
-  if (filters.notContactedDays !== undefined) {
-    clean.notContactedDays = Math.min(Math.max(1, Math.floor(filters.notContactedDays)), 365);
-  }
-
   return clean;
 }
 
 // ─── Query executors (one per entity) ────────────────────────────────────────
 
+/**
+ * Build "no recent activity" conditions for a customer.
+ *
+ * "Last contact" = most recent job OR quote created for the customer.
+ * Using AND (not OR) — customer must have no recent job AND no recent quote.
+ */
+function noActivitySince(cutoff: Date) {
+  return [
+    { jobs:   { none: { createdAt: { gte: cutoff } } } },
+    { quotes: { none: { createdAt: { gte: cutoff } } } },
+  ];
+}
+
 async function queryCustomers(companyId: string, f: CrmFilters, applied: string[]) {
-  const where: Record<string, unknown> = { companyId };
+  // Build conditions as an AND-array to keep search OR isolated
+  const conditions: Record<string, unknown>[] = [{ companyId }];
 
-  where.isActive = f.isActive !== false; // default: only active
-  applied.push(f.isActive === false ? "Inclusief gearchiveerde klanten" : "Alleen actieve klanten");
+  // ── Archive / active / inactive status ────────────────────────────────────
+  if (f.customerStatus === "archived") {
+    conditions.push({ isActive: false });
+    applied.push("Gearchiveerde klanten");
+  } else if (f.customerStatus === "inactive") {
+    // Active customers with no commercial activity in the last 30 days
+    conditions.push({ isActive: true });
+    noActivitySince(daysAgo(30)).forEach((c) => conditions.push(c));
+    applied.push("Inactieve klanten (geen contact > 30 dagen)");
+  } else {
+    // Default: respect explicit isActive flag, fall back to active-only
+    const active = f.isActive !== false;
+    conditions.push({ isActive: active });
+    applied.push(active ? "Alleen actieve klanten" : "Actief + gearchiveerd");
+  }
 
+  // ── notContactedDays: no job OR quote created in last N days ──────────────
+  if (f.notContactedDays) {
+    noActivitySince(daysAgo(f.notContactedDays)).forEach((c) => conditions.push(c));
+    applied.push(`Geen activiteit in ${f.notContactedDays}+ dagen`);
+  }
+
+  // ── lastContactBefore: no activity since the start of the given date range ─
+  if (f.lastContactBefore) {
+    const { gte } = resolveDateFilter(f.lastContactBefore);
+    if (gte) {
+      noActivitySince(gte).forEach((c) => conditions.push(c));
+      applied.push(`Geen contact na ${gte.toLocaleDateString("nl-NL")}`);
+    }
+  }
+
+  // ── Customer type ─────────────────────────────────────────────────────────
   if (f.customerType) {
-    where.customerType = f.customerType;
+    conditions.push({ customerType: f.customerType });
     applied.push(`Type: ${f.customerType}`);
   }
 
+  // ── Text search ───────────────────────────────────────────────────────────
   if (f.search) {
-    where.OR = [
-      { name: { contains: f.search, mode: "insensitive" } },
-      { city: { contains: f.search, mode: "insensitive" } },
-      { email: { contains: f.search, mode: "insensitive" } },
-      { contactPerson: { contains: f.search, mode: "insensitive" } },
-    ];
+    conditions.push({
+      OR: [
+        { name: { contains: f.search, mode: "insensitive" } },
+        { billingCity: { contains: f.search, mode: "insensitive" } },
+        { email: { contains: f.search, mode: "insensitive" } },
+        { contactPerson: { contains: f.search, mode: "insensitive" } },
+      ],
+    });
     applied.push(`Zoekterm: "${f.search}"`);
   }
 
-  if (f.dateRange) {
-    const dateF = resolveDateFilter(f.dateRange);
-    where.createdAt = dateF;
-    applied.push(`Aangemaakt: ${f.dateRange.replace(/_/g, " ")}`);
+  // ── Registration date range ───────────────────────────────────────────────
+  if (f.dateRange && f.dateRange !== "overdue") {
+    conditions.push({ createdAt: resolveDateFilter(f.dateRange) });
+    applied.push(`Aangemeld: ${f.dateRange.replace(/_/g, " ")}`);
   }
 
-  if (f.notContactedDays) {
-    // Customers whose most recent job/quote is older than N days (or have none)
-    const cutoff = daysAgo(f.notContactedDays);
-    where.AND = [
-      {
-        OR: [
-          { jobs: { none: { createdAt: { gte: cutoff } } } },
-          { jobs: { none: {} } },
-        ],
-      },
-    ];
-    applied.push(`Geen contact in ${f.notContactedDays} dagen`);
-  }
-
-  return db.customer.findMany({
-    where,
+  const rows = await db.customer.findMany({
+    where: { AND: conditions },
     select: {
       id: true,
       name: true,
@@ -222,11 +273,34 @@ async function queryCustomers(companyId: string, f: CrmFilters, applied: string[
       phone: true,
       email: true,
       billingCity: true,
+      isActive: true,
       createdAt: true,
       _count: { select: { jobs: true, quotes: true, invoices: true } },
+      // Fetch the single most-recent job to compute lastActivity
+      jobs: {
+        select: { createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+      quotes: {
+        select: { createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
     orderBy: { name: "asc" },
     take: f.limit ?? 20,
+  });
+
+  // Compute lastActivity (max of latest job and latest quote) then strip raw arrays
+  return rows.map(({ jobs, quotes, ...rest }) => {
+    const lastJobDate = jobs[0]?.createdAt ?? null;
+    const lastQuoteDate = quotes[0]?.createdAt ?? null;
+    const lastActivity =
+      lastJobDate && lastQuoteDate
+        ? new Date(Math.max(lastJobDate.getTime(), lastQuoteDate.getTime()))
+        : lastJobDate ?? lastQuoteDate ?? null;
+    return { ...rest, lastActivity };
   });
 }
 
@@ -511,8 +585,11 @@ function generateSummary(entity: CrmEntity, count: number, filters: CrmFilters):
     };
     summary += dateLabels[filters.dateRange] ?? "";
   }
+  if (filters.customerStatus === "inactive") summary += " zonder recente activiteit (inactief)";
+  else if (filters.customerStatus === "archived") summary += " (gearchiveerd)";
+  if (filters.notContactedDays) summary += ` zonder contact in ${filters.notContactedDays}+ dagen`;
+  if (filters.lastContactBefore) summary += ` zonder recent contact`;
   if (filters.search) summary += ` die overeenkomen met "${filters.search}"`;
-  if (filters.notContactedDays) summary += ` zonder recente contactactiviteit (>${filters.notContactedDays} dagen)`;
 
   return summary + ".";
 }
@@ -615,10 +692,22 @@ export const CRM_QUERY_TOOL = {
               type: "boolean",
               description: "For customers/materials: true = active only (default), false = include archived.",
             },
+            customerStatus: {
+              type: "string",
+              enum: ["active", "inactive", "archived"],
+              description:
+                "Customer lifecycle status. 'active' = isActive and recently contacted. 'inactive' = isActive but no job/quote activity in last 30 days. 'archived' = soft-deleted (isActive: false). Use 'inactive' for questions like 'not contacted recently' or 'dormant customers'.",
+            },
             notContactedDays: {
               type: "number",
               description:
-                "For customers: return customers with no job activity in the last N days.",
+                "For customers: return those with no job OR quote activity in the last N days. Checks both jobs and quotes created dates. Range: 1-365.",
+            },
+            lastContactBefore: {
+              type: "string",
+              enum: ["today", "this_week", "this_month", "last_month", "last_7_days", "last_30_days"],
+              description:
+                "For customers: return those whose last job/quote was created before the start of the given date range. E.g. 'this_month' means no activity since start of this month.",
             },
             customerType: {
               type: "string",
@@ -657,13 +746,21 @@ Business context:
 - Jobs can be: LEAK (lekkage), INSPECTION (inspectie), BITUMEN_ROOF (bitumen dak), ROOF_RENOVATION (dakrenovatie), ROOF_TERRACE (dakterras), MAINTENANCE, OTHER.
 - A lead becomes a customer after conversion. Quotes come from customers. Jobs come from accepted quotes.
 
-Rules:
+Customer status rules (important):
+- "actieve klanten" / "active customers" → customerStatus: "active"
+- "inactieve klanten" / "niet benaderd" / "dormant" / "slapende klanten" → customerStatus: "inactive"
+- "gearchiveerde klanten" / "archived" → customerStatus: "archived"
+- "niet benaderd in X dagen" → notContactedDays: X
+- "geen contact deze maand" → lastContactBefore: "this_month"
+- "geen contact vorige maand" → lastContactBefore: "last_month"
+
+General rules:
 - Always call query_crm. Never answer without calling the function.
-- "recent" or "niet benaderd" → use notContactedDays: 30
 - "vandaag" → dateRange: today
 - "deze maand" / "this month" → dateRange: this_month
-- "actief" without context → for jobs use status: IN_PROGRESS, for customers use isActive: true
-- "open" for quotes/invoices → status: SENT or DRAFT
+- "actief" for jobs → status: IN_PROGRESS
+- "open" for quotes/invoices → status: SENT or status: DRAFT
 - When the user asks "which" or "welke", they want a list — use appropriate filters
 - Keep limit at 20 unless user asks for more or fewer
-- Prefer specific filters over broad searches`;
+- Prefer specific filters over broad searches
+- lastActivity field in results = date of most recent job or quote for that customer`;
