@@ -47,12 +47,16 @@ async function updateLead(formData: FormData) {
   revalidatePath("/leads");
 }
 
-async function deleteLead(formData: FormData) {
+async function archiveLead(formData: FormData) {
   "use server";
   const session = await getAppSession();
   if (!session.isAuthenticated || !isDatabaseReady()) return;
   const id = String(formData.get("id") ?? "");
-  await db.lead.deleteMany({ where: { id, companyId: session.companyId } });
+  // Soft-delete: mark as LOST rather than hard-deleting business data
+  await db.lead.updateMany({
+    where: { id, companyId: session.companyId },
+    data: { status: "LOST" },
+  });
   redirect("/leads");
 }
 
@@ -117,10 +121,10 @@ export default async function LeadDetailPage({ params }: Props) {
               <button type="submit" className="btn-secondary text-sm">Omzetten naar klant</button>
             </form>
           )}
-          <form action={deleteLead}>
-            <input type="hidden" name="id" value={lead.id} />
-            <button type="submit" className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
-              Verwijderen
+          <form action={archiveLead}>
+              <input type="hidden" name="id" value={lead.id} />
+              <button type="submit" className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+              Archiveren
             </button>
           </form>
         </div>

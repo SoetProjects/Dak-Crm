@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
-import { Decimal } from "@prisma/client/runtime/library";
-
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Concept",
   SENT: "Verzonden",
@@ -113,12 +111,13 @@ async function createJobFromQuote(formData: FormData) {
   });
   if (!quote) return;
 
+  const year = new Date().getFullYear();
   const last = await db.job.findFirst({
-    where: { companyId: session.companyId },
-    orderBy: { createdAt: "desc" },
+    where: { companyId: session.companyId, jobNumber: { startsWith: `JOB-${year}-` } },
+    orderBy: { jobNumber: "desc" },
   });
-  const seq = last?.jobNumber ? parseInt(last.jobNumber.replace(/\D/g, "")) + 1 : 1;
-  const jobNumber = `WB-${String(seq).padStart(4, "0")}`;
+  const seq = last?.jobNumber ? parseInt(last.jobNumber.split("-").pop() ?? "0") + 1 : 1;
+  const jobNumber = `JOB-${year}-${String(seq).padStart(4, "0")}`;
 
   const job = await db.job.create({
     data: {

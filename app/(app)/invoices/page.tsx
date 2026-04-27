@@ -30,12 +30,13 @@ async function createInvoice(formData: FormData) {
   const jobId = String(formData.get("jobId") ?? "") || null;
   if (!customerId) return;
 
+  const year = new Date().getFullYear();
   const last = await db.invoice.findFirst({
-    where: { companyId: session.companyId },
+    where: { companyId: session.companyId, invoiceNumber: { startsWith: `FAC-${year}-` } },
     orderBy: { invoiceNumber: "desc" },
   });
-  const seq = last ? parseInt(last.invoiceNumber.replace(/\D/g, "")) + 1 : 1;
-  const invoiceNumber = `FACT-${new Date().getFullYear()}-${String(seq).padStart(4, "0")}`;
+  const seq = last ? parseInt(last.invoiceNumber.split("-").pop() ?? "0") + 1 : 1;
+  const invoiceNumber = `FAC-${year}-${String(seq).padStart(4, "0")}`;
 
   // If creating from a job, copy job materials as lines
   let lines: Array<{ description: string; quantity: number; unit: string; unitPrice: number; vatPercentage: number; totalAmount: number; sortOrder: number }> = [];

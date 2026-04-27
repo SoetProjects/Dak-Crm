@@ -4,10 +4,12 @@ import type { CreateQuoteInput, UpdateQuoteInput, QuoteStatus } from "@/lib/type
 
 async function nextQuoteNumber(companyId: string): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await db.quote.count({
+  const last = await db.quote.findFirst({
     where: { companyId, quoteNumber: { startsWith: `OFF-${year}-` } },
+    orderBy: { quoteNumber: "desc" },
   });
-  return `OFF-${year}-${String(count + 1).padStart(4, "0")}`;
+  const seq = last ? parseInt(last.quoteNumber.split("-").pop() ?? "0") + 1 : 1;
+  return `OFF-${year}-${String(seq).padStart(4, "0")}`;
 }
 
 async function recalculateQuoteTotals(quoteId: string) {

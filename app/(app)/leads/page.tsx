@@ -54,7 +54,12 @@ async function createLead(formData: FormData) {
   revalidatePath("/leads");
 }
 
-export default async function LeadsPage() {
+type SearchParams = { alles?: string };
+type Props = { searchParams: Promise<SearchParams> };
+
+export default async function LeadsPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const showAll = sp.alles === "1";
   const session = await getAppSession();
 
   if (!isDatabaseReady()) {
@@ -69,18 +74,28 @@ export default async function LeadsPage() {
   await ensureCompany(session.companyId);
 
   const leads = await db.lead.findMany({
-    where: { companyId: session.companyId },
+    where: {
+      companyId: session.companyId,
+      // Hide archived (LOST/WON) by default unless user requests all
+      ...(!showAll ? { status: { notIn: ["LOST", "WON"] } } : {}),
+    },
     include: { customer: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--primary)]">Leads</h1>
-          <p className="mt-1 text-sm text-slate-500">{leads.length} leads totaal</p>
+          <p className="mt-1 text-sm text-slate-500">{leads.length} leads {showAll ? "(alle)" : "(actief)"}</p>
         </div>
+        <Link
+          href={showAll ? "/leads" : "/leads?alles=1"}
+          className="text-sm text-slate-500 hover:underline"
+        >
+          {showAll ? "Verberg verloren/gewonnen" : "Toon alle leads"}
+        </Link>
       </div>
 
       {/* Create form */}

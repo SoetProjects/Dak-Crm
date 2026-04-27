@@ -4,10 +4,12 @@ import type { CreateJobInput, UpdateJobInput, JobStatus } from "@/lib/types";
 
 async function nextJobNumber(companyId: string): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await db.job.count({
-    where: { companyId, jobNumber: { startsWith: `WB-${year}-` } },
+  const last = await db.job.findFirst({
+    where: { companyId, jobNumber: { startsWith: `JOB-${year}-` } },
+    orderBy: { jobNumber: "desc" },
   });
-  return `WB-${year}-${String(count + 1).padStart(4, "0")}`;
+  const seq = last?.jobNumber ? parseInt(last.jobNumber.split("-").pop() ?? "0") + 1 : 1;
+  return `JOB-${year}-${String(seq).padStart(4, "0")}`;
 }
 
 export async function getJobs(

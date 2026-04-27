@@ -39,12 +39,13 @@ async function createJob(formData: FormData) {
   const customerId = String(formData.get("customerId") ?? "");
   if (!customerId) return;
 
+  const year = new Date().getFullYear();
   const last = await db.job.findFirst({
-    where: { companyId: session.companyId },
-    orderBy: { createdAt: "desc" },
+    where: { companyId: session.companyId, jobNumber: { startsWith: `JOB-${year}-` } },
+    orderBy: { jobNumber: "desc" },
   });
-  const seq = last?.jobNumber ? parseInt(last.jobNumber.replace(/\D/g, "")) + 1 : 1;
-  const jobNumber = `WB-${String(seq).padStart(4, "0")}`;
+  const seq = last?.jobNumber ? parseInt(last.jobNumber.split("-").pop() ?? "0") + 1 : 1;
+  const jobNumber = `JOB-${year}-${String(seq).padStart(4, "0")}`;
 
   const raw = {
     scheduledStart: String(formData.get("scheduledStart") ?? ""),
@@ -69,7 +70,11 @@ async function createJob(formData: FormData) {
   redirect(`/jobs/${job.id}`);
 }
 
-export default async function JobsPage() {
+type SearchParams = { customerId?: string };
+type Props = { searchParams: Promise<SearchParams> };
+
+export default async function JobsPage({ searchParams }: Props) {
+  const sp = await searchParams;
   const session = await getAppSession();
 
   if (!isDatabaseReady()) {
@@ -111,7 +116,7 @@ export default async function JobsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="mb-4 font-semibold text-[var(--primary)]">Nieuwe werkbon</h2>
         <form action={createJob} className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <select name="customerId" required className="input">
+          <select name="customerId" required className="input" defaultValue={sp.customerId ?? ""}>
             <option value="">Klant kiezen *</option>
             {customers.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>

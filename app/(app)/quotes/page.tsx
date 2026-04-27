@@ -27,12 +27,13 @@ async function createQuote(formData: FormData) {
   if (!session.isAuthenticated || !isDatabaseReady()) return;
   await ensureCompany(session.companyId);
 
+  const year = new Date().getFullYear();
   const last = await db.quote.findFirst({
-    where: { companyId: session.companyId },
+    where: { companyId: session.companyId, quoteNumber: { startsWith: `OFF-${year}-` } },
     orderBy: { quoteNumber: "desc" },
   });
-  const seq = last ? parseInt(last.quoteNumber.replace(/\D/g, "")) + 1 : 1;
-  const quoteNumber = `OFF-${String(seq).padStart(4, "0")}`;
+  const seq = last ? parseInt(last.quoteNumber.split("-").pop() ?? "0") + 1 : 1;
+  const quoteNumber = `OFF-${year}-${String(seq).padStart(4, "0")}`;
 
   const customerId = String(formData.get("customerId") ?? "");
   if (!customerId) return;
@@ -52,7 +53,11 @@ async function createQuote(formData: FormData) {
   redirect(`/quotes/${quote.id}`);
 }
 
-export default async function QuotesPage() {
+type SearchParams = { customerId?: string };
+type Props = { searchParams: Promise<SearchParams> };
+
+export default async function QuotesPage({ searchParams }: Props) {
+  const sp = await searchParams;
   const session = await getAppSession();
 
   if (!isDatabaseReady()) {
@@ -91,7 +96,7 @@ export default async function QuotesPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="mb-4 font-semibold text-[var(--primary)]">Nieuwe offerte</h2>
         <form action={createQuote} className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <select name="customerId" required className="input">
+          <select name="customerId" required className="input" defaultValue={sp.customerId ?? ""}>
             <option value="">Klant kiezen *</option>
             {customers.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
