@@ -35,6 +35,7 @@ const NAV_SECTIONS = [
   {
     label: "Systeem",
     items: [
+      { href: "/assistant", label: "AI Assistent" },
       { href: "/instellingen", label: "Instellingen" },
     ],
   },
