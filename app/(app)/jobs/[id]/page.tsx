@@ -5,11 +5,11 @@ import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
 
 type JobDetailPageProps = {
-  params: Promise<{ jobId: string }>;
+  params: Promise<{ id: string }>;
 };
 
 export default async function JobDetailPage(props: JobDetailPageProps) {
-  const { jobId } = await props.params;
+  const { id } = await props.params;
 
   if (!isDatabaseReady()) {
     return (
@@ -29,7 +29,7 @@ export default async function JobDetailPage(props: JobDetailPageProps) {
 
   const job = await db.job.findFirst({
     where: {
-      id: jobId,
+      id,
       companyId: session.companyId,
     },
     include: {

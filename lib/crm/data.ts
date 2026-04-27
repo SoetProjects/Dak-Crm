@@ -11,7 +11,7 @@ const todayRange = () => {
 };
 
 export const getDashboardStats = async () => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { start, end } = todayRange();
 
   const [{ count: klantenCount }, { count: openJobsCount }, { count: afsprakenCount }, jobsForInvoices] =
@@ -48,7 +48,7 @@ export const getDashboardStats = async () => {
 };
 
 export const getKlanten = async () => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data } = await supabase.from("klanten").select("*").order("id", { ascending: false });
   const rows = (data ?? []) as RowData[];
 
@@ -62,7 +62,7 @@ export const getKlanten = async () => {
 };
 
 export const getKlantDetail = async (id: string) => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const [klant, jobs, notes] = await Promise.all([
     supabase.from("klanten").select("*").eq("id", id).maybeSingle(),
     supabase.from("jobs").select("*").eq("klant_id", id).order("id", { ascending: false }),
@@ -77,7 +77,7 @@ export const getKlantDetail = async (id: string) => {
 };
 
 export const getJobs = async () => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const [jobsRes, klantenRes] = await Promise.all([
     supabase.from("jobs").select("*").order("id", { ascending: false }),
     supabase.from("klanten").select("*"),
@@ -104,7 +104,7 @@ export const getJobs = async () => {
 };
 
 export const getJobDetail = async (id: string) => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const [job, fotos, afspraken] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", id).maybeSingle(),
     supabase.from("fotos").select("*").eq("job_id", id).order("id", { ascending: false }),
@@ -118,7 +118,7 @@ export const getJobDetail = async (id: string) => {
 };
 
 export const getPlanningItems = async () => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const [appointments, jobRes] = await Promise.all([
     supabase.from("afspraken").select("*").order("datum", { ascending: true }).limit(200),
     supabase.from("jobs").select("*"),
@@ -140,7 +140,7 @@ export const getPlanningItems = async () => {
 };
 
 export const getMonteursByAfspraak = async () => {
-  const supabase = createClient();
+  const supabase = await createClient();
   const [linksRes, usersRes] = await Promise.all([
     supabase.from("afspraak_monteurs").select("*"),
     supabase.from("gebruikers").select("*"),
