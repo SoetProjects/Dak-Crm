@@ -135,16 +135,16 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users         User[]
-  customers     Customer[]
-  leads         Lead[]
-  quotes        Quote[]
-  jobs          Job[]
-  planningItems PlanningItem[]
-  timeEntries   TimeEntry[]
-  materials     Material[]
-  invoices      Invoice[]
-  integrations  Integration[]
+  users            User[]
+  customers        Customer[]
+  leads            Lead[]
+  quotes           Quote[]
+  jobs             Job[]
+  planningItems    PlanningItem[]
+  timeEntries      TimeEntry[]
+  materials        Material[]
+  invoices         Invoice[]
+  integrations     Integration[]
 }
 
 // ─────────────────────────────────────────────
@@ -180,26 +180,29 @@ model User {
 // ─────────────────────────────────────────────
 
 model Customer {
-  id                  String       @id @default(uuid())
-  companyId           String
-  company             Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerType        CustomerType @default(PRIVATE)
-  name                String
-  contactPerson       String?
-  phone               String?
-  email               String?
-  billingAddress      String?
-  billingPostalCode   String?
-  billingCity         String?
-  serviceAddress      String?
-  servicePostalCode   String?
-  serviceCity         String?
-  kvkNumber           String?
-  vatNumber           String?
-  notes               String?
-  isActive            Boolean      @default(true)
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id                   String       @id @default(uuid())
+  companyId            String
+  company              Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerType         CustomerType @default(PRIVATE)
+  name                 String
+  contactPerson        String?
+  phone                String?
+  email                String?
+  billingAddress       String?
+  billingPostalCode    String?
+  billingCity          String?
+  serviceAddress       String?
+  servicePostalCode    String?
+  serviceCity          String?
+  kvkNumber            String?
+  vatNumber            String?
+  notes                String?
+  isActive             Boolean      @default(true)
+  // Accounting sync fields (used by SnelStart and future integrations)
+  externalAccountingId String?
+  accountingSyncStatus String       @default("not_synced")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
   leads    Lead[]
   quotes   Quote[]
@@ -208,6 +211,7 @@ model Customer {
 
   @@index([companyId, name])
   @@index([companyId, customerType])
+  @@index([companyId, accountingSyncStatus])
 }
 
 // ─────────────────────────────────────────────
@@ -471,34 +475,40 @@ model JobMaterial {
 // ─────────────────────────────────────────────
 
 model Invoice {
-  id            String        @id @default(uuid())
-  companyId     String
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  jobId         String?
-  job           Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  quoteId       String?
-  quote         Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  invoiceNumber String
-  status        InvoiceStatus @default(DRAFT)
-  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
-  vatPercentage Decimal       @default(21) @db.Decimal(5, 2)
-  vatAmount     Decimal       @default(0) @db.Decimal(12, 2)
-  totalAmount   Decimal       @default(0) @db.Decimal(12, 2)
-  invoiceDate   DateTime      @default(now())
-  dueDate       DateTime?
-  paidAt        DateTime?
-  notes         String?
-  externalRef   String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                   String        @id @default(uuid())
+  companyId            String
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId           String
+  customer             Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  jobId                String?
+  job                  Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  quoteId              String?
+  quote                Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  invoiceNumber        String
+  status               InvoiceStatus @default(DRAFT)
+  subtotal             Decimal       @default(0) @db.Decimal(12, 2)
+  vatPercentage        Decimal       @default(21) @db.Decimal(5, 2)
+  vatAmount            Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount          Decimal       @default(0) @db.Decimal(12, 2)
+  invoiceDate          DateTime      @default(now())
+  dueDate              DateTime?
+  paidAt               DateTime?
+  notes                String?
+  externalRef          String?
+  // Accounting sync fields (used by SnelStart and future integrations)
+  externalAccountingId String?
+  accountingSyncStatus String        @default("not_synced")
+  accountingSyncError  String?
+  syncedAt             DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   lines InvoiceLine[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, status])
   @@index([companyId, dueDate])
+  @@index([companyId, accountingSyncStatus])
 }
 
 model InvoiceLine {
@@ -522,20 +532,44 @@ model InvoiceLine {
 // ─────────────────────────────────────────────
 
 model Integration {
-  id           String              @id @default(uuid())
-  companyId    String
-  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  provider     IntegrationProvider
-  status       IntegrationStatus   @default(INACTIVE)
-  accessToken  String?
-  refreshToken String?
-  tokenExpiry  DateTime?
-  settings     Json?
-  lastSyncAt   DateTime?
-  lastError    String?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id                   String              @id @default(uuid())
+  companyId            String
+  company              Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  provider             IntegrationProvider
+  name                 String?
+  status               IntegrationStatus   @default(INACTIVE)
+  // TODO: Replace with proper encrypted credentials before storing real keys
+  encryptedCredentials String?
+  accessToken          String?
+  refreshToken         String?
+  tokenExpiry          DateTime?
+  config               Json?
+  lastSyncAt           DateTime?
+  lastError            String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  logs IntegrationLog[]
 
   @@unique([companyId, provider])
   @@index([companyId, status])
+}
+
+model IntegrationLog {
+  id            String       @id @default(uuid())
+  companyId     String
+  integrationId String?
+  integration   Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  type          String
+  direction     String
+  entityType    String?
+  entityId      String?
+  status        String
+  message       String?
+  payload       Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([companyId, integrationId])
+  @@index([companyId, createdAt])
+  @@index([companyId, entityType, entityId])
 }
