@@ -194,16 +194,45 @@ function ResultsTable({ entity, data }: { entity: CrmEntity; data: Record<string
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const STORAGE_KEY = "ai-assistant-messages";
+
+function serializeMessages(msgs: Message[]): string {
+  return JSON.stringify(msgs.map((m) => ({ ...m, data: m.data?.slice(0, 50) })));
+}
+
 export default function AssistantPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? (JSON.parse(stored) as Message[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, serializeMessages(messages));
+    } catch {
+      // Quota exceeded — silently ignore
+    }
+  }, [messages]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  function clearConversation() {
+    setMessages([]);
+    localStorage.removeItem(STORAGE_KEY);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
 
   async function ask(q: string) {
     const trimmed = q.trim();
@@ -265,40 +294,58 @@ export default function AssistantPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex-none px-6 py-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold">
-            AI
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold select-none">
+              AI
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900">AI Assistent</h1>
+              <p className="text-xs text-gray-500">Stel vragen over klanten, werkbonnen, offertes en meer</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">AI Assistent</h1>
-            <p className="text-xs text-gray-500">Stel vragen over je klanten, werkbonnen, offertes en meer</p>
-          </div>
+          {messages.length > 0 && (
+            <button
+              onClick={clearConversation}
+              className="text-xs text-gray-400 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Gesprek wissen"
+            >
+              Wis gesprek
+            </button>
+          )}
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.length === 0 && (
-          <div className="space-y-6">
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3">🤖</div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-1">Hoe kan ik je helpen?</h2>
-              <p className="text-gray-500 text-sm max-w-sm mx-auto">
-                Stel vragen in gewoon Nederlands. Ik zoek de gegevens op uit je CRM.
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-8 px-4 text-center">
+            <div>
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4 shadow-md">
+                AI
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-1">Hoe kan ik je helpen?</h2>
+              <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                Stel een vraag in gewoon Nederlands en ik zoek de gegevens op uit je CRM.
               </p>
             </div>
 
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Voorbeeldvragen</p>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="w-full max-w-xl">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-3">
+                Voorbeelden
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {EXAMPLES.map((ex) => (
                   <button
                     key={ex.label}
                     onClick={() => ask(ex.question)}
-                    className="text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm text-gray-700 group"
+                    disabled={loading}
+                    className="text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all text-sm text-gray-700 group disabled:opacity-50"
                   >
-                    <span className="font-medium text-gray-800 group-hover:text-blue-700 block">{ex.label}</span>
-                    <span className="text-gray-400 text-xs">{ex.question}</span>
+                    <span className="font-medium text-gray-800 group-hover:text-blue-700 block leading-tight">
+                      {ex.label}
+                    </span>
+                    <span className="text-gray-400 text-xs mt-0.5 block truncate">{ex.question}</span>
                   </button>
                 ))}
               </div>
