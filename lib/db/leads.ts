@@ -2,28 +2,17 @@ import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import type { CreateLeadInput, UpdateLeadInput, LeadStatus } from "@/lib/types";
 
-// ─── List ────────────────────────────────────
-
 export async function getLeads(companyId: string, status?: LeadStatus) {
   if (!isDatabaseReady()) return [];
-
   return db.lead.findMany({
-    where: {
-      companyId,
-      ...(status ? { status } : {}),
-    },
-    include: {
-      customer: { select: { id: true, name: true } },
-    },
+    where: { companyId, ...(status ? { status } : {}) },
+    include: { customer: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
   });
 }
 
-// ─── Single ──────────────────────────────────
-
 export async function getLeadById(companyId: string, id: string) {
   if (!isDatabaseReady()) return null;
-
   return db.lead.findFirst({
     where: { id, companyId },
     include: {
@@ -36,11 +25,8 @@ export async function getLeadById(companyId: string, id: string) {
   });
 }
 
-// ─── Create ──────────────────────────────────
-
 export async function createLead(companyId: string, input: CreateLeadInput) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.lead.create({
     data: {
       companyId,
@@ -48,24 +34,18 @@ export async function createLead(companyId: string, input: CreateLeadInput) {
       phone: input.phone ?? null,
       email: input.email ?? null,
       address: input.address ?? null,
+      postalCode: input.postalCode ?? null,
       city: input.city ?? null,
       requestType: input.requestType,
-      notes: input.notes ?? null,
+      description: input.description ?? null,
       source: input.source ?? null,
       customerId: input.customerId ?? null,
     },
   });
 }
 
-// ─── Update ──────────────────────────────────
-
-export async function updateLead(
-  companyId: string,
-  id: string,
-  input: UpdateLeadInput,
-) {
+export async function updateLead(companyId: string, id: string, input: UpdateLeadInput) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.lead.updateMany({
     where: { id, companyId },
     data: {
@@ -73,42 +53,29 @@ export async function updateLead(
       ...(input.phone !== undefined && { phone: input.phone }),
       ...(input.email !== undefined && { email: input.email }),
       ...(input.address !== undefined && { address: input.address }),
+      ...(input.postalCode !== undefined && { postalCode: input.postalCode }),
       ...(input.city !== undefined && { city: input.city }),
       ...(input.requestType !== undefined && { requestType: input.requestType }),
       ...(input.status !== undefined && { status: input.status }),
-      ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.description !== undefined && { description: input.description }),
       ...(input.source !== undefined && { source: input.source }),
       ...(input.customerId !== undefined && { customerId: input.customerId }),
     },
   });
 }
 
-export async function updateLeadStatus(
-  companyId: string,
-  id: string,
-  status: LeadStatus,
-) {
+export async function updateLeadStatus(companyId: string, id: string, status: LeadStatus) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
-  return db.lead.updateMany({
-    where: { id, companyId },
-    data: { status },
-  });
+  return db.lead.updateMany({ where: { id, companyId }, data: { status } });
 }
-
-// ─── Delete ──────────────────────────────────
 
 export async function deleteLead(companyId: string, id: string) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.lead.deleteMany({ where: { id, companyId } });
 }
 
-// ─── Convert lead → customer ─────────────────
-
 export async function convertLeadToCustomer(companyId: string, leadId: string) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   const lead = await db.lead.findFirst({ where: { id: leadId, companyId } });
   if (!lead) throw new Error("Lead niet gevonden");
 
@@ -120,15 +87,14 @@ export async function convertLeadToCustomer(companyId: string, leadId: string) {
         phone: lead.phone,
         email: lead.email,
         serviceAddress: lead.address,
+        servicePostalCode: lead.postalCode,
         serviceCity: lead.city,
       },
     });
-
     await tx.lead.updateMany({
       where: { id: leadId, companyId },
       data: { status: "WON", customerId: customer.id },
     });
-
     return customer;
   });
 }

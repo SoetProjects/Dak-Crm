@@ -20,3 +20,23 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+.input {
+  @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-[var(--accent)]/30 focus:border-[var(--accent)] transition;
+}
+
+textarea.input {
+  @apply resize-none;
+}
+
+.btn-primary {
+  @apply rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#153058] disabled:opacity-60 disabled:cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[var(--primary)] transition hover:bg-slate-50;
+}
+
+.badge {
+  @apply inline-block rounded-full px-2 py-0.5 text-xs font-medium;
+}

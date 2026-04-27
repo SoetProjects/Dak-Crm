@@ -1,152 +1,212 @@
 import Link from "next/link";
-import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
 import { ensureCompany } from "@/lib/tenancy/company-context";
 
+const STATUS_LABELS: Record<string, string> = {
+  PLANNED: "Gepland",
+  IN_PROGRESS: "In uitvoering",
+  WAITING_FOR_MATERIAL: "Wacht op materiaal",
+  WAITING_FOR_WEATHER: "Wacht op weer",
+  COMPLETED: "Afgerond",
+  CANCELLED: "Geannuleerd",
+};
+const STATUS_COLORS: Record<string, string> = {
+  PLANNED: "bg-blue-50 text-blue-700",
+  IN_PROGRESS: "bg-yellow-50 text-yellow-700",
+  WAITING_FOR_MATERIAL: "bg-orange-50 text-orange-700",
+  WAITING_FOR_WEATHER: "bg-sky-50 text-sky-700",
+  COMPLETED: "bg-green-50 text-green-700",
+  CANCELLED: "bg-slate-100 text-slate-500",
+};
+const TYPE_LABELS: Record<string, string> = {
+  LEAK: "Lekkage",
+  INSPECTION: "Inspectie",
+  BITUMEN_ROOF: "Bitumen dak",
+  ROOF_RENOVATION: "Dakrenovatie",
+  ROOF_TERRACE: "Dakterras",
+  MAINTENANCE: "Onderhoud",
+  OTHER: "Overig",
+};
+
 async function createJob(formData: FormData) {
   "use server";
   const session = await getAppSession();
-  if (!session.isAuthenticated) return;
-  if (!isDatabaseReady()) return;
-
+  if (!session.isAuthenticated || !isDatabaseReady()) return;
   await ensureCompany(session.companyId);
-
   const customerId = String(formData.get("customerId") ?? "");
   if (!customerId) return;
 
-  await db.job.create({
+  const last = await db.job.findFirst({
+    where: { companyId: session.companyId },
+    orderBy: { createdAt: "desc" },
+  });
+  const seq = last?.jobNumber ? parseInt(last.jobNumber.replace(/\D/g, "")) + 1 : 1;
+  const jobNumber = `WB-${String(seq).padStart(4, "0")}`;
+
+  const raw = {
+    scheduledStart: String(formData.get("scheduledStart") ?? ""),
+    scheduledEnd: String(formData.get("scheduledEnd") ?? ""),
+  };
+
+  const job = await db.job.create({
     data: {
       companyId: session.companyId,
       customerId,
-      title: String(formData.get("title") ?? ""),
-      description: String(formData.get("description") ?? "") || null,
-      address: String(formData.get("address") ?? "") || null,
-      jobType: "OTHER",
+      jobNumber,
+      title: String(formData.get("title") ?? "") || "Werkbon",
+      jobType: String(formData.get("jobType") ?? "OTHER") as never,
       status: "PLANNED",
-      scheduledStart: formData.get("scheduledStart")
-        ? new Date(String(formData.get("scheduledStart")))
-        : null,
-      scheduledEnd: formData.get("scheduledEnd")
-        ? new Date(String(formData.get("scheduledEnd")))
-        : null,
-      notes: String(formData.get("notes") ?? "") || null,
+      address: String(formData.get("address") ?? "") || null,
+      postalCode: String(formData.get("postalCode") ?? "") || null,
+      city: String(formData.get("city") ?? "") || null,
+      scheduledStart: raw.scheduledStart ? new Date(raw.scheduledStart) : null,
+      scheduledEnd: raw.scheduledEnd ? new Date(raw.scheduledEnd) : null,
     },
   });
-
-  revalidatePath("/jobs");
-}
-
-async function deleteJob(formData: FormData) {
-  "use server";
-  const session = await getAppSession();
-  if (!session.isAuthenticated) return;
-  if (!isDatabaseReady()) return;
-
-  const jobId = String(formData.get("jobId") ?? "");
-  if (!jobId) return;
-
-  await db.job.deleteMany({
-    where: { id: jobId, companyId: session.companyId },
-  });
-
-  revalidatePath("/jobs");
+  redirect(`/jobs/${job.id}`);
 }
 
 export default async function JobsPage() {
+  const session = await getAppSession();
+
   if (!isDatabaseReady()) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <h1 className="text-2xl font-semibold text-[var(--primary)]">Jobs</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Stel eerst `DATABASE_URL` in om CRUD voor jobs te activeren.
-        </p>
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <h1 className="text-2xl font-semibold text-[var(--primary)]">Werkbonnen</h1>
+        <p className="mt-2 text-sm text-slate-500">DATABASE_URL niet ingesteld.</p>
       </div>
     );
   }
 
-  const session = await getAppSession();
   await ensureCompany(session.companyId);
-
-  const [customers, jobs] = await Promise.all([
-    db.customer.findMany({
-      where: { companyId: session.companyId },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
+  const [jobs, customers] = await Promise.all([
     db.job.findMany({
       where: { companyId: session.companyId },
       include: { customer: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
+    }),
+    db.customer.findMany({
+      where: { companyId: session.companyId, isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
+  const active = jobs.filter(j => j.status !== "COMPLETED" && j.status !== "CANCELLED");
+  const closed = jobs.filter(j => j.status === "COMPLETED" || j.status === "CANCELLED");
+
   return (
     <div className="space-y-6">
-      <section>
-        <h1 className="text-2xl font-semibold text-[var(--primary)]">Jobs</h1>
-        <p className="mt-1 text-sm text-slate-600">Werkorders plannen en beheren.</p>
-      </section>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--primary)]">Werkbonnen</h1>
+          <p className="mt-1 text-sm text-slate-500">{active.length} actief &middot; {closed.length} gesloten</p>
+        </div>
+      </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-[var(--primary)]">Job toevoegen</h2>
-        {customers.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">
-            Voeg eerst een klant toe in het scherm Klanten.
+      {/* Create form */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-4 font-semibold text-[var(--primary)]">Nieuwe werkbon</h2>
+        <form action={createJob} className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <select name="customerId" required className="input">
+            <option value="">Klant kiezen *</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <input name="title" placeholder="Titel" className="input" />
+          <select name="jobType" className="input">
+            <option value="LEAK">Lekkage</option>
+            <option value="INSPECTION">Inspectie</option>
+            <option value="BITUMEN_ROOF">Bitumen dak</option>
+            <option value="ROOF_RENOVATION">Dakrenovatie</option>
+            <option value="ROOF_TERRACE">Dakterras</option>
+            <option value="MAINTENANCE">Onderhoud</option>
+            <option value="OTHER">Overig</option>
+          </select>
+          <input name="address" placeholder="Adres" className="input" />
+          <input name="postalCode" placeholder="Postcode" className="input" />
+          <input name="city" placeholder="Stad" className="input" />
+          <input name="scheduledStart" type="datetime-local" className="input" placeholder="Start" />
+          <input name="scheduledEnd" type="datetime-local" className="input" placeholder="Einde" />
+          <button type="submit" className="btn-primary">Werkbon aanmaken</button>
+        </form>
+        {customers.length === 0 && (
+          <p className="mt-2 text-xs text-orange-600">
+            Eerst een <Link href="/customers" className="underline">klant aanmaken</Link>.
           </p>
-        ) : (
-          <form action={createJob} className="mt-4 grid gap-3 md:grid-cols-2">
-            <input name="title" required placeholder="Titel job" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            <select name="customerId" required className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-              <option value="">Kies klant</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-            <input name="address" placeholder="Adres job" className="rounded-lg border border-slate-200 px-3 py-2 text-sm md:col-span-2" />
-            <textarea name="description" placeholder="Omschrijving" className="md:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            <input name="scheduledStart" type="datetime-local" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            <input name="scheduledEnd" type="datetime-local" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            <textarea name="notes" placeholder="Notities" className="md:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-            <button type="submit" className="md:col-span-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white">
-              Opslaan
-            </button>
-          </form>
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-[var(--primary)]">Joblijst</h2>
-        <div className="mt-4 space-y-2">
-          {jobs.length === 0 ? (
-            <p className="text-sm text-slate-500">Nog geen jobs.</p>
-          ) : (
-            jobs.map((job) => (
-              <article key={job.id} className="flex items-start justify-between rounded-lg border border-slate-200 p-3">
-                <div>
-                  <Link
-                    href={`/jobs/${job.id}`}
-                    className="text-sm font-medium text-[var(--primary)] hover:underline"
-                  >
-                    {job.title}
-                  </Link>
-                  <p className="text-xs text-slate-500">{job.customer.name} · {job.status}</p>
-                  <p className="mt-1 text-xs text-slate-600">{job.address ?? "Geen adres"}</p>
-                </div>
-                <form action={deleteJob}>
-                  <input type="hidden" name="jobId" value={job.id} />
-                  <button type="submit" className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700">
-                    Verwijderen
-                  </button>
-                </form>
-              </article>
-            ))
-          )}
+      {/* Active jobs */}
+      <section className="rounded-xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 px-5 py-3">
+          <h2 className="font-semibold text-[var(--primary)]">Actieve werkbonnen</h2>
         </div>
+        {active.length === 0 ? (
+          <p className="p-6 text-sm text-slate-500">Geen actieve werkbonnen.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {active.map((j) => (
+              <Link
+                key={j.id}
+                href={`/jobs/${j.id}`}
+                className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-slate-50 transition"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-mono">{j.jobNumber}</span>
+                    <p className="font-medium text-[var(--primary)] truncate">{j.title}</p>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {j.customer.name} &middot; {j.city ?? "—"}
+                  </p>
+                  {j.scheduledStart && (
+                    <p className="text-xs text-slate-400">
+                      {new Date(j.scheduledStart).toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <span className={`badge ${STATUS_COLORS[j.status] ?? "bg-slate-100"}`}>
+                    {STATUS_LABELS[j.status] ?? j.status}
+                  </span>
+                  <span className="text-xs text-slate-400">{TYPE_LABELS[j.jobType] ?? j.jobType}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
+
+      {/* Closed jobs */}
+      {closed.length > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-5 py-3">
+            <h2 className="font-semibold text-slate-500">Gesloten werkbonnen</h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {closed.map((j) => (
+              <Link
+                key={j.id}
+                href={`/jobs/${j.id}`}
+                className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-slate-50 transition opacity-70"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-700 truncate">{j.jobNumber} — {j.title}</p>
+                  <p className="text-xs text-slate-500">{j.customer.name}</p>
+                </div>
+                <span className={`badge ${STATUS_COLORS[j.status] ?? "bg-slate-100"}`}>
+                  {STATUS_LABELS[j.status] ?? j.status}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

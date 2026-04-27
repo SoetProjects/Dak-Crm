@@ -1,225 +1,146 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
 import { ensureCompany } from "@/lib/tenancy/company-context";
 
-function toCurrencyAmount(value: string) {
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) return 0;
-  return Math.round(parsed * 100) / 100;
-}
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Concept",
+  SENT: "Verzonden",
+  ACCEPTED: "Geaccepteerd",
+  REJECTED: "Afgewezen",
+  EXPIRED: "Verlopen",
+};
+const STATUS_COLORS: Record<string, string> = {
+  DRAFT: "bg-slate-100 text-slate-600",
+  SENT: "bg-blue-50 text-blue-700",
+  ACCEPTED: "bg-green-50 text-green-700",
+  REJECTED: "bg-red-50 text-red-600",
+  EXPIRED: "bg-orange-50 text-orange-600",
+};
 
 async function createQuote(formData: FormData) {
   "use server";
   const session = await getAppSession();
   if (!session.isAuthenticated || !isDatabaseReady()) return;
-
   await ensureCompany(session.companyId);
 
+  const last = await db.quote.findFirst({
+    where: { companyId: session.companyId },
+    orderBy: { quoteNumber: "desc" },
+  });
+  const seq = last ? parseInt(last.quoteNumber.replace(/\D/g, "")) + 1 : 1;
+  const quoteNumber = `OFF-${String(seq).padStart(4, "0")}`;
+
   const customerId = String(formData.get("customerId") ?? "");
-  const quoteNumber = String(formData.get("quoteNumber") ?? "");
-  const description = String(formData.get("lineDescription") ?? "");
-  const unit = String(formData.get("lineUnit") ?? "m²") || "m²";
-  const quantity = toCurrencyAmount(String(formData.get("lineQuantity") ?? "0"));
-  const unitPrice = toCurrencyAmount(String(formData.get("lineUnitPrice") ?? "0"));
-  const total = Math.round(quantity * unitPrice * 100) / 100;
+  if (!customerId) return;
 
-  if (!customerId || !quoteNumber || !description) return;
-
-  await db.quote.create({
+  const quote = await db.quote.create({
     data: {
       companyId: session.companyId,
       customerId,
       quoteNumber,
-      status: "DRAFT",
-      totalAmount: total,
-      lines: {
-        create: [
-          {
-            companyId: session.companyId,
-            description,
-            quantity,
-            unit,
-            unitPrice,
-            total,
-            sortOrder: 0,
-          },
-        ],
-      },
+      title: String(formData.get("title") ?? "") || "Offerte",
+      notes: String(formData.get("notes") ?? "") || null,
+      validUntil: formData.get("validUntil")
+        ? new Date(String(formData.get("validUntil")))
+        : null,
     },
   });
-
-  revalidatePath("/quotes");
-}
-
-async function deleteQuote(formData: FormData) {
-  "use server";
-  const session = await getAppSession();
-  if (!session.isAuthenticated || !isDatabaseReady()) return;
-
-  const quoteId = String(formData.get("quoteId") ?? "");
-  if (!quoteId) return;
-
-  await db.quote.deleteMany({
-    where: {
-      id: quoteId,
-      companyId: session.companyId,
-    },
-  });
-
-  revalidatePath("/quotes");
+  redirect(`/quotes/${quote.id}`);
 }
 
 export default async function QuotesPage() {
+  const session = await getAppSession();
+
   if (!isDatabaseReady()) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
         <h1 className="text-2xl font-semibold text-[var(--primary)]">Offertes</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Stel eerst `DATABASE_URL` in om CRUD voor offertes te activeren.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">DATABASE_URL niet ingesteld.</p>
       </div>
     );
   }
 
-  const session = await getAppSession();
   await ensureCompany(session.companyId);
-
-  const [customers, quotes] = await Promise.all([
-    db.customer.findMany({
-      where: { companyId: session.companyId },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
+  const [quotes, customers] = await Promise.all([
     db.quote.findMany({
       where: { companyId: session.companyId },
-      include: {
-        customer: { select: { name: true } },
-        lines: { orderBy: { sortOrder: "asc" } },
-      },
+      include: { customer: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
+    }),
+    db.customer.findMany({
+      where: { companyId: session.companyId, isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
   return (
     <div className="space-y-6">
-      <section>
-        <h1 className="text-2xl font-semibold text-[var(--primary)]">Offertes</h1>
-        <p className="mt-1 text-sm text-slate-600">Basis offertebeheer met m²-regels.</p>
-      </section>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--primary)]">Offertes</h1>
+          <p className="mt-1 text-sm text-slate-500">{quotes.length} offertes</p>
+        </div>
+      </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-[var(--primary)]">Offerte toevoegen</h2>
-        {customers.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">
-            Voeg eerst een klant toe in het scherm Klanten.
+      {/* Create form */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-4 font-semibold text-[var(--primary)]">Nieuwe offerte</h2>
+        <form action={createQuote} className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <select name="customerId" required className="input">
+            <option value="">Klant kiezen *</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <input name="title" placeholder="Titel" className="input" />
+          <input name="validUntil" type="date" className="input" placeholder="Geldig tot" />
+          <button type="submit" className="btn-primary">Offerte aanmaken</button>
+        </form>
+        {customers.length === 0 && (
+          <p className="mt-2 text-xs text-orange-600">
+            Eerst een <Link href="/customers" className="underline">klant aanmaken</Link> voordat je een offerte kunt maken.
           </p>
-        ) : (
-          <form action={createQuote} className="mt-4 grid gap-3 md:grid-cols-2">
-            <input
-              name="quoteNumber"
-              required
-              placeholder="Offertenummer (bijv. OFF-2026-001)"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-            <select
-              name="customerId"
-              required
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="">Kies klant</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-
-            <input
-              name="lineDescription"
-              required
-              placeholder="Regel omschrijving"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm md:col-span-2"
-            />
-            <input
-              name="lineQuantity"
-              type="number"
-              step="0.01"
-              defaultValue="1"
-              required
-              placeholder="Aantal (m²)"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-            <input
-              name="lineUnitPrice"
-              type="number"
-              step="0.01"
-              defaultValue="0"
-              required
-              placeholder="Prijs per eenheid"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-            <select
-              name="lineUnit"
-              defaultValue="m²"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm md:col-span-2"
-            >
-              <option value="m²">m²</option>
-              <option value="uur">uur</option>
-              <option value="stuk">stuk</option>
-            </select>
-            <button
-              type="submit"
-              className="md:col-span-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white"
-            >
-              Offerte opslaan
-            </button>
-          </form>
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-[var(--primary)]">Offertelijst</h2>
-        <div className="mt-4 space-y-3">
-          {quotes.length === 0 ? (
-            <p className="text-sm text-slate-500">Nog geen offertes.</p>
-          ) : (
-            quotes.map((quote) => (
-              <article
-                key={quote.id}
-                className="rounded-lg border border-slate-200 p-3"
+      {/* List */}
+      <section className="rounded-xl border border-slate-200 bg-white">
+        {quotes.length === 0 ? (
+          <p className="p-6 text-sm text-slate-500">Nog geen offertes.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {quotes.map((q) => (
+              <Link
+                key={q.id}
+                href={`/quotes/${q.id}`}
+                className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-slate-50 transition"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--primary)]">
-                      {quote.quoteNumber} · {quote.customer.name}
+                <div className="min-w-0">
+                  <p className="font-medium text-[var(--primary)]">{q.quoteNumber} — {q.title}</p>
+                  <p className="text-xs text-slate-500">{q.customer.name}</p>
+                  {q.validUntil && (
+                    <p className="text-xs text-slate-400">
+                      Geldig tot: {new Date(q.validUntil).toLocaleDateString("nl-NL")}
                     </p>
-                    <p className="text-xs text-slate-500">Status: {quote.status}</p>
-                  </div>
-                  <form action={deleteQuote}>
-                    <input type="hidden" name="quoteId" value={quote.id} />
-                    <button
-                      type="submit"
-                      className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700"
-                    >
-                      Verwijderen
-                    </button>
-                  </form>
+                  )}
                 </div>
-                {quote.lines[0] ? (
-                  <p className="mt-2 text-xs text-slate-600">
-                    {quote.lines[0].description} · {String(quote.lines[0].quantity)}{" "}
-                    {quote.lines[0].unit} x EUR {String(quote.lines[0].unitPrice)}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-sm font-semibold text-[var(--primary)]">
-                  Totaal: EUR {String(quote.totalAmount)}
-                </p>
-              </article>
-            ))
-          )}
-        </div>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <span className={`badge ${STATUS_COLORS[q.status] ?? "bg-slate-100 text-slate-600"}`}>
+                    {STATUS_LABELS[q.status] ?? q.status}
+                  </span>
+                  <span className="text-sm font-semibold text-[var(--primary)]">
+                    €{Number(q.totalAmount).toLocaleString("nl-NL", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

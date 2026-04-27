@@ -1,6 +1,6 @@
 /**
  * DakCRM – gedeelde TypeScript typen
- * Afgeleid van het Prisma-schema; gebruik deze typen in UI en server-functies.
+ * Afgeleid van het Prisma-schema.
  */
 
 // ─────────────────────────────────────────────
@@ -9,38 +9,52 @@
 
 export type UserRole = "ADMIN" | "OFFICE" | "FIELD_WORKER";
 
-export type LeadStatus = "NEW" | "CONTACTED" | "QUOTED" | "WON" | "LOST";
+export type CustomerType = "PRIVATE" | "BUSINESS" | "HOA" | "CONTRACTOR";
+
+export type LeadStatus =
+  | "NEW"
+  | "CONTACTED"
+  | "APPOINTMENT_PLANNED"
+  | "QUOTED"
+  | "WON"
+  | "LOST";
 
 export type RequestType =
   | "LEAK"
   | "RENOVATION"
   | "INSPECTION"
-  | "MAINTENANCE"
-  | "NEW_BUILD"
+  | "BITUMEN_ROOF"
+  | "ROOF_TERRACE"
   | "OTHER";
 
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
 
 export type JobType =
   | "LEAK"
+  | "INSPECTION"
   | "BITUMEN_ROOF"
   | "ROOF_RENOVATION"
-  | "INSPECTION"
+  | "ROOF_TERRACE"
   | "MAINTENANCE"
-  | "NEW_BUILD"
   | "OTHER";
 
-export type JobStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "ON_HOLD";
+export type JobStatus =
+  | "PLANNED"
+  | "IN_PROGRESS"
+  | "WAITING_FOR_MATERIAL"
+  | "WAITING_FOR_WEATHER"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
 
-export type PlanningItemType = "JOB" | "MEETING" | "ABSENCE" | "TRAINING" | "OTHER";
+export type PlanningItemType = "JOB" | "INSPECTION" | "QUOTE_VISIT" | "MAINTENANCE" | "BLOCKED";
 
 export type TimeEntryType = "WORK" | "TRAVEL" | "BREAK";
 
-export type MaterialUnit = "M2" | "M" | "PIECE" | "KG" | "L" | "HOUR" | "SET";
+export type MaterialUnit = "M2" | "M1" | "STUK" | "UUR" | "DAG" | "KG" | "L" | "POST";
 
-export type IntegrationProvider = "EXACT" | "SNELSTART" | "MONEYBIRD" | "TWINFIELD" | "AFAS" | "OTHER";
+export type IntegrationProvider = "MOLLIE" | "OPENWEATHER" | "POSTCODE_API" | "EMAIL" | "SNELSTART";
 
 export type IntegrationStatus = "ACTIVE" | "INACTIVE" | "ERROR";
 
@@ -51,6 +65,7 @@ export type IntegrationStatus = "ACTIVE" | "INACTIVE" | "ERROR";
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   NEW: "Nieuw",
   CONTACTED: "Benaderd",
+  APPOINTMENT_PLANNED: "Afspraak gepland",
   QUOTED: "Offerte uitgebracht",
   WON: "Gewonnen",
   LOST: "Verloren",
@@ -60,14 +75,14 @@ export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
   LEAK: "Lekkage",
   RENOVATION: "Renovatie",
   INSPECTION: "Inspectie",
-  MAINTENANCE: "Onderhoud",
-  NEW_BUILD: "Nieuwbouw",
+  BITUMEN_ROOF: "Bitumen dak",
+  ROOF_TERRACE: "Dakterras",
   OTHER: "Overig",
 };
 
 export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
   DRAFT: "Concept",
-  SENT: "Verstuurd",
+  SENT: "Verzonden",
   ACCEPTED: "Geaccepteerd",
   REJECTED: "Afgewezen",
   EXPIRED: "Verlopen",
@@ -76,41 +91,43 @@ export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   PLANNED: "Gepland",
   IN_PROGRESS: "In uitvoering",
+  WAITING_FOR_MATERIAL: "Wacht op materiaal",
+  WAITING_FOR_WEATHER: "Wacht op weer",
   COMPLETED: "Afgerond",
   CANCELLED: "Geannuleerd",
-  ON_HOLD: "On hold",
 };
 
 export const JOB_TYPE_LABELS: Record<JobType, string> = {
   LEAK: "Lekkage",
+  INSPECTION: "Inspectie",
   BITUMEN_ROOF: "Bitumen dak",
   ROOF_RENOVATION: "Dakrenovatie",
-  INSPECTION: "Inspectie",
+  ROOF_TERRACE: "Dakterras",
   MAINTENANCE: "Onderhoud",
-  NEW_BUILD: "Nieuwbouw",
   OTHER: "Overig",
 };
 
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   DRAFT: "Concept",
-  SENT: "Verstuurd",
+  SENT: "Verzonden",
   PAID: "Betaald",
-  OVERDUE: "Verlopen",
+  OVERDUE: "Te laat",
   CANCELLED: "Geannuleerd",
 };
 
 export const MATERIAL_UNIT_LABELS: Record<MaterialUnit, string> = {
   M2: "m²",
-  M: "m¹",
-  PIECE: "stuk",
+  M1: "m¹",
+  STUK: "stuk",
+  UUR: "uur",
+  DAG: "dag",
   KG: "kg",
-  L: "liter",
-  HOUR: "uur",
-  SET: "set",
+  L: "L",
+  POST: "post",
 };
 
 // ─────────────────────────────────────────────
-// Entity types (light – voor lijstweergaven)
+// Row types (database output)
 // ─────────────────────────────────────────────
 
 export type CompanyRow = {
@@ -119,35 +136,29 @@ export type CompanyRow = {
   kvkNumber: string | null;
   vatNumber: string | null;
   address: string | null;
+  postalCode: string | null;
   city: string | null;
   phone: string | null;
   email: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type UserRow = {
-  id: string;
-  companyId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string | null;
-  role: UserRole;
-  isActive: boolean;
   createdAt: Date;
 };
 
 export type CustomerRow = {
   id: string;
   companyId: string;
+  customerType: CustomerType;
   name: string;
   contactPerson: string | null;
   phone: string | null;
   email: string | null;
   billingAddress: string | null;
+  billingPostalCode: string | null;
   billingCity: string | null;
   serviceAddress: string | null;
+  servicePostalCode: string | null;
+  serviceCity: string | null;
+  kvkNumber: string | null;
+  vatNumber: string | null;
   notes: string | null;
   isActive: boolean;
   createdAt: Date;
@@ -162,11 +173,12 @@ export type LeadRow = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  postalCode: string | null;
   city: string | null;
   requestType: RequestType;
   status: LeadStatus;
-  notes: string | null;
   source: string | null;
+  description: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -177,26 +189,16 @@ export type QuoteRow = {
   customerId: string;
   leadId: string | null;
   quoteNumber: string;
+  title: string;
   status: QuoteStatus;
-  subject: string | null;
-  totalAmount: number;
+  subtotal: number;
+  vatPercentage: number;
   vatAmount: number;
+  totalAmount: number;
   validUntil: Date | null;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { name: string };
-};
-
-export type QuoteLineRow = {
-  id: string;
-  quoteId: string;
-  description: string;
-  quantity: number;
-  unit: string;
-  unitPrice: number;
-  total: number;
-  vatRate: number;
-  sortOrder: number;
 };
 
 export type JobRow = {
@@ -204,73 +206,22 @@ export type JobRow = {
   companyId: string;
   customerId: string;
   quoteId: string | null;
+  leadId: string | null;
   jobNumber: string | null;
   title: string;
   description: string | null;
-  address: string | null;
-  city: string | null;
   jobType: JobType;
   status: JobStatus;
+  address: string | null;
+  postalCode: string | null;
+  city: string | null;
   scheduledStart: Date | null;
   scheduledEnd: Date | null;
-  actualStart: Date | null;
-  actualEnd: Date | null;
-  notes: string | null;
+  completedAt: Date | null;
+  internalNotes: string | null;
+  customerNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { name: string };
-  assignments?: { user: { firstName: string; lastName: string } }[];
-};
-
-export type PlanningItemRow = {
-  id: string;
-  companyId: string;
-  jobId: string | null;
-  userId: string | null;
-  type: PlanningItemType;
-  title: string;
-  description: string | null;
-  startAt: Date;
-  endAt: Date;
-  allDay: boolean;
-  color: string | null;
-  job?: { title: string } | null;
-  user?: { firstName: string; lastName: string } | null;
-};
-
-export type TimeEntryRow = {
-  id: string;
-  jobId: string;
-  userId: string;
-  type: TimeEntryType;
-  startedAt: Date;
-  endedAt: Date | null;
-  minutes: number | null;
-  notes: string | null;
-};
-
-export type MaterialRow = {
-  id: string;
-  companyId: string;
-  name: string;
-  description: string | null;
-  sku: string | null;
-  unit: MaterialUnit;
-  costPrice: number | null;
-  salesPrice: number | null;
-  vatRate: number;
-  isActive: boolean;
-};
-
-export type JobMaterialRow = {
-  id: string;
-  jobId: string;
-  materialId: string | null;
-  description: string;
-  quantity: number;
-  unit: string;
-  unitPrice: number;
-  total: number;
 };
 
 export type InvoiceRow = {
@@ -281,140 +232,96 @@ export type InvoiceRow = {
   quoteId: string | null;
   invoiceNumber: string;
   status: InvoiceStatus;
-  subject: string | null;
+  subtotal: number;
+  vatPercentage: number;
+  vatAmount: number;
+  totalAmount: number;
   invoiceDate: Date;
   dueDate: Date | null;
   paidAt: Date | null;
-  totalAmount: number;
-  vatAmount: number;
+  notes: string | null;
   createdAt: Date;
-  customer?: { name: string };
-};
-
-export type IntegrationRow = {
-  id: string;
-  companyId: string;
-  provider: IntegrationProvider;
-  status: IntegrationStatus;
-  lastSyncAt: Date | null;
-  lastError: string | null;
 };
 
 // ─────────────────────────────────────────────
-// CRUD input types
+// Input types
 // ─────────────────────────────────────────────
 
 export type CreateLeadInput = {
   name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  city?: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
   requestType: RequestType;
-  notes?: string;
-  source?: string;
-  customerId?: string;
+  status?: LeadStatus;
+  source?: string | null;
+  description?: string | null;
+  customerId?: string | null;
 };
 
-export type UpdateLeadInput = Partial<CreateLeadInput> & {
-  status?: LeadStatus;
-};
+export type UpdateLeadInput = Partial<CreateLeadInput>;
 
 export type CreateCustomerInput = {
+  customerType?: CustomerType;
   name: string;
-  contactPerson?: string;
-  phone?: string;
-  email?: string;
-  billingAddress?: string;
-  billingCity?: string;
-  billingZip?: string;
-  serviceAddress?: string;
-  serviceCity?: string;
-  serviceZip?: string;
-  kvkNumber?: string;
-  vatNumber?: string;
-  notes?: string;
+  contactPerson?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  billingAddress?: string | null;
+  billingPostalCode?: string | null;
+  billingCity?: string | null;
+  serviceAddress?: string | null;
+  servicePostalCode?: string | null;
+  serviceCity?: string | null;
+  kvkNumber?: string | null;
+  vatNumber?: string | null;
+  notes?: string | null;
 };
 
 export type UpdateCustomerInput = Partial<CreateCustomerInput>;
 
 export type CreateQuoteInput = {
   customerId: string;
-  leadId?: string;
-  subject?: string;
-  notes?: string;
-  validUntil?: Date;
-  vatRate?: number;
+  leadId?: string | null;
+  title?: string;
+  notes?: string | null;
+  validUntil?: Date | null;
+  vatPercentage?: number;
 };
 
-export type UpdateQuoteInput = Partial<CreateQuoteInput> & {
-  status?: QuoteStatus;
-  totalAmount?: number;
-  vatAmount?: number;
-};
-
-export type CreateQuoteLineInput = {
-  quoteId: string;
-  description: string;
-  quantity: number;
-  unit?: string;
-  unitPrice: number;
-  vatRate?: number;
-  sortOrder?: number;
-};
+export type UpdateQuoteInput = Partial<Omit<CreateQuoteInput, "customerId">>;
 
 export type CreateJobInput = {
   customerId: string;
-  quoteId?: string;
+  quoteId?: string | null;
+  leadId?: string | null;
   title: string;
-  description?: string;
-  address?: string;
-  city?: string;
+  description?: string | null;
   jobType: JobType;
-  scheduledStart?: Date;
-  scheduledEnd?: Date;
-  notes?: string;
+  address?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  scheduledStart?: Date | null;
+  scheduledEnd?: Date | null;
+  internalNotes?: string | null;
+  customerNotes?: string | null;
 };
 
-export type UpdateJobInput = Partial<CreateJobInput> & {
-  status?: JobStatus;
-  actualStart?: Date;
-  actualEnd?: Date;
-  jobNumber?: string;
-};
+export type UpdateJobInput = Partial<Omit<CreateJobInput, "customerId">>;
 
 // ─────────────────────────────────────────────
 // Dashboard types
 // ─────────────────────────────────────────────
 
 export type DashboardStats = {
+  jobsToday: number;
+  planningToday: number;
   openLeads: number;
   openQuotes: number;
   activeJobs: number;
-  jobsToday: number;
-  plannedWorkersToday: number;
-  overdueInvoices: number;
-  openInvoicesAmount: number;
-};
-
-export type TodayJob = {
-  id: string;
-  title: string;
-  address: string | null;
-  city: string | null;
-  status: JobStatus;
-  scheduledStart: Date | null;
-  scheduledEnd: Date | null;
-  customerName: string;
-  assignedWorkers: string[];
-};
-
-export type TodayPlanningItem = {
-  id: string;
-  type: PlanningItemType;
-  title: string;
-  startAt: Date;
-  endAt: Date;
-  workerName: string | null;
-  jobTitle: string | null;
+  waitingJobs: number;
+  openInvoicesCount: number;
+  openInvoicesTotal: number;
 };

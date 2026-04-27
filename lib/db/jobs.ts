@@ -2,8 +2,6 @@ import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import type { CreateJobInput, UpdateJobInput, JobStatus } from "@/lib/types";
 
-// ─── Helpers ─────────────────────────────────
-
 async function nextJobNumber(companyId: string): Promise<string> {
   const year = new Date().getFullYear();
   const count = await db.job.count({
@@ -12,31 +10,18 @@ async function nextJobNumber(companyId: string): Promise<string> {
   return `WB-${year}-${String(count + 1).padStart(4, "0")}`;
 }
 
-// ─── List ────────────────────────────────────
-
 export async function getJobs(
   companyId: string,
-  filters?: {
-    status?: JobStatus;
-    customerId?: string;
-    from?: Date;
-    to?: Date;
-  },
+  filters?: { status?: JobStatus; customerId?: string; from?: Date; to?: Date },
 ) {
   if (!isDatabaseReady()) return [];
-
   return db.job.findMany({
     where: {
       companyId,
       ...(filters?.status ? { status: filters.status } : {}),
       ...(filters?.customerId ? { customerId: filters.customerId } : {}),
       ...(filters?.from || filters?.to
-        ? {
-            scheduledStart: {
-              ...(filters.from ? { gte: filters.from } : {}),
-              ...(filters.to ? { lt: filters.to } : {}),
-            },
-          }
+        ? { scheduledStart: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lt: filters.to } : {}) } }
         : {}),
     },
     include: {
@@ -49,11 +34,8 @@ export async function getJobs(
   });
 }
 
-// ─── Single ──────────────────────────────────
-
 export async function getJobById(companyId: string, id: string) {
   if (!isDatabaseReady()) return null;
-
   return db.job.findFirst({
     where: { id, companyId },
     include: {
@@ -80,11 +62,8 @@ export async function getJobById(companyId: string, id: string) {
   });
 }
 
-// ─── Jobs for a date range (planning) ────────
-
 export async function getJobsForRange(companyId: string, from: Date, to: Date) {
   if (!isDatabaseReady()) return [];
-
   return db.job.findMany({
     where: {
       companyId,
@@ -101,101 +80,76 @@ export async function getJobsForRange(companyId: string, from: Date, to: Date) {
   });
 }
 
-// ─── Create ──────────────────────────────────
-
 export async function createJob(companyId: string, input: CreateJobInput) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   const jobNumber = await nextJobNumber(companyId);
-
   return db.job.create({
     data: {
       companyId,
       customerId: input.customerId,
       quoteId: input.quoteId ?? null,
+      leadId: input.leadId ?? null,
       jobNumber,
       title: input.title,
       description: input.description ?? null,
       address: input.address ?? null,
+      postalCode: input.postalCode ?? null,
       city: input.city ?? null,
       jobType: input.jobType,
       scheduledStart: input.scheduledStart ?? null,
       scheduledEnd: input.scheduledEnd ?? null,
-      notes: input.notes ?? null,
+      internalNotes: input.internalNotes ?? null,
+      customerNotes: input.customerNotes ?? null,
     },
   });
 }
 
-// ─── Update ──────────────────────────────────
-
-export async function updateJob(
-  companyId: string,
-  id: string,
-  input: UpdateJobInput,
-) {
+export async function updateJob(companyId: string, id: string, input: UpdateJobInput) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.job.updateMany({
     where: { id, companyId },
     data: {
       ...(input.title !== undefined && { title: input.title }),
       ...(input.description !== undefined && { description: input.description }),
       ...(input.address !== undefined && { address: input.address }),
+      ...(input.postalCode !== undefined && { postalCode: input.postalCode }),
       ...(input.city !== undefined && { city: input.city }),
       ...(input.jobType !== undefined && { jobType: input.jobType }),
-      ...(input.status !== undefined && { status: input.status }),
       ...(input.scheduledStart !== undefined && { scheduledStart: input.scheduledStart }),
       ...(input.scheduledEnd !== undefined && { scheduledEnd: input.scheduledEnd }),
-      ...(input.actualStart !== undefined && { actualStart: input.actualStart }),
-      ...(input.actualEnd !== undefined && { actualEnd: input.actualEnd }),
-      ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.internalNotes !== undefined && { internalNotes: input.internalNotes }),
+      ...(input.customerNotes !== undefined && { customerNotes: input.customerNotes }),
     },
   });
 }
 
-export async function updateJobStatus(
-  companyId: string,
-  id: string,
-  status: JobStatus,
-) {
-  return updateJob(companyId, id, { status });
+export async function updateJobStatus(companyId: string, id: string, status: JobStatus) {
+  if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
+  const data: Record<string, unknown> = { status };
+  if (status === "COMPLETED") data.completedAt = new Date();
+  return db.job.updateMany({ where: { id, companyId }, data });
 }
-
-// ─── Assignments ─────────────────────────────
 
 export async function assignWorker(companyId: string, jobId: string, userId: string, isLead = false) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.jobAssignment.upsert({
     where: { jobId_userId: { jobId, userId } },
-    create: { companyId, jobId, userId, isLead },
     update: { isLead },
+    create: { companyId, jobId, userId, isLead },
   });
 }
 
 export async function unassignWorker(companyId: string, jobId: string, userId: string) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.jobAssignment.deleteMany({ where: { jobId, userId, companyId } });
 }
 
-// ─── Notes ───────────────────────────────────
-
-export async function addJobNote(
-  companyId: string,
-  jobId: string,
-  authorId: string,
-  content: string,
-) {
+export async function addJobNote(companyId: string, jobId: string, authorId: string, content: string) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.jobNote.create({ data: { companyId, jobId, authorId, content } });
 }
 
-// ─── Delete ──────────────────────────────────
-
 export async function deleteJob(companyId: string, id: string) {
   if (!isDatabaseReady()) throw new Error("Database niet beschikbaar");
-
   return db.job.deleteMany({ where: { id, companyId } });
 }
