@@ -17,6 +17,7 @@ const NAV_SECTIONS = [
       { href: "/leads", label: "Leads" },
       { href: "/customers", label: "Klanten" },
       { href: "/quotes", label: "Offertes" },
+      { href: "/quotes/genereren", label: "AI Offerte" },
     ],
   },
   {
