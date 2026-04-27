@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  OFFICE
+  FIELD_WORKER
+}
+
+enum RequestType {
+  LEAK
+  RENOVATION
+  INSPECTION
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUOTED
+  WON
+  LOST
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+enum JobType {
+  LEAK
+  BITUMEN_ROOF
+  ROOF_RENOVATION
+  INSPECTION
+  OTHER
+}
+
+enum JobStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  customers  Customer[]
+  leads      Lead[]
+  quotes     Quote[]
+  quoteLines QuoteLine[]
+  jobs       Job[]
+  jobPhotos  JobPhoto[]
+  jobNotes   JobNote[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignments       JobAssignment[]
+  uploadedJobPhotos JobPhoto[]      @relation("UploadedJobPhotos")
+  jobNotes          JobNote[]       @relation("JobNoteAuthor")
+
+  @@index([companyId, role])
+}
+
+model Customer {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name           String
+  phone          String?
+  email          String?
+  billingAddress String?
+  serviceAddress String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  quotes Quote[]
+  jobs   Job[]
+
+  @@index([companyId, name])
+}
+
+model Lead {
+  id          String      @id @default(cuid())
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String?
+  email       String?
+  address     String?
+  requestType RequestType
+  status      LeadStatus  @default(NEW)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  quotes Quote[]
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  leadId      String?
+  lead        Lead?       @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  quoteNumber String
+  status      QuoteStatus @default(DRAFT)
+  totalAmount Decimal     @db.Decimal(12, 2)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  lines QuoteLine[]
+  jobs  Job[]
+
+  @@unique([companyId, quoteNumber])
+  @@index([companyId, status])
+}
+
+model QuoteLine {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal @db.Decimal(12, 2)
+  unit        String
+  unitPrice   Decimal @db.Decimal(12, 2)
+  total       Decimal @db.Decimal(12, 2)
+  sortOrder   Int     @default(0)
+
+  @@index([companyId, quoteId])
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId     String
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  quoteId        String?
+  quote          Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  title          String
+  description    String?
+  address        String?
+  jobType        JobType
+  status         JobStatus @default(PLANNED)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  assignments JobAssignment[]
+  photos      JobPhoto[]
+  jobNotes    JobNote[]
+
+  @@index([companyId, status])
+  @@index([companyId, scheduledStart])
+}
+
+model JobAssignment {
+  id         String   @id @default(cuid())
+  companyId  String
+  jobId      String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, userId])
+  @@index([companyId, userId])
+  @@index([companyId, jobId])
+}
+
+model JobPhoto {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobId        String
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?    @relation("UploadedJobPhotos", fields: [uploadedById], references: [id], onDelete: SetNull)
+  fileKey      String
+  caption      String?
+  createdAt    DateTime @default(now())
+
+  @@index([companyId, jobId, createdAt])
+}
+
+model JobNote {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("JobNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, jobId, createdAt])
+}
