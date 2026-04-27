@@ -13,7 +13,6 @@ type AuthFormProps = {
 
 export function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
-  const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,6 +26,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError(null);
     setInfo(null);
     setIsSubmitting(true);
+
+    const supabase = createClient();
 
     if (isLogin) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
