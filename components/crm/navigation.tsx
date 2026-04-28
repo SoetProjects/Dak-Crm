@@ -23,7 +23,7 @@ export function DesktopSidebar() {
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-blue-100 bg-white p-4 md:block">
-      <h2 className="mb-6 text-xl font-semibold text-primary">CRM Soet</h2>
+      <h2 className="mb-6 text-xl font-semibold text-primary">DakERP</h2>
       <nav className="space-y-2">
         {items.map((item) => (
           <Link key={item.href} href={item.href} className={linkClasses(pathname.startsWith(item.href))}>

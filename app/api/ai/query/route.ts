@@ -9,6 +9,31 @@ import {
   type CrmQueryIntent,
 } from "@/lib/ai/crm-query";
 
+// ─── Conversation memory ──────────────────────────────────────────────────────
+
+type ContextMessage = { role: "user" | "assistant"; content: string };
+
+/**
+ * Sanitise context messages from the client.
+ * - Accepts only "user" and "assistant" roles (rejects "system")
+ * - Trims each message to 300 chars so context never dominates the prompt
+ * - Caps at 10 messages (= last 5 back-and-forth exchanges)
+ */
+function sanitizeContext(raw: unknown): ContextMessage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (m): m is Record<string, unknown> =>
+        !!m && typeof m === "object" && "role" in m && "content" in m,
+    )
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .slice(-10)
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: String(m.content ?? "").slice(0, 300),
+    }));
+}
+
 // ─── Rate limiting (simple in-memory, per deployment) ─────────────────────────
 // In production, replace with Redis or Upstash. This prevents abuse per session.
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
@@ -62,7 +87,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Verplicht veld ontbreekt: question." }, { status: 400 });
   }
 
-  const question = String((body as Record<string, unknown>).question ?? "").trim();
+  const parsed = body as Record<string, unknown>;
+  const question = String(parsed.question ?? "").trim();
+  const context = sanitizeContext(parsed.context);
 
   if (question.length < 3) {
     return NextResponse.json({ error: "Vraag is te kort (minimaal 3 tekens)." }, { status: 400 });
@@ -102,6 +129,9 @@ export async function POST(req: NextRequest) {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: CRM_SYSTEM_PROMPT },
+        // Inject sanitised conversation history so the model understands
+        // follow-up references ("die klanten", "hetzelfde filter", "ook de zakelijke")
+        ...context,
         { role: "user", content: question },
       ],
       tools: [CRM_QUERY_TOOL],
@@ -134,8 +164,8 @@ export async function POST(req: NextRequest) {
 
     // Type-check the entity field (critical security gate)
     const validEntities = ["customers", "leads", "jobs", "quotes", "invoices", "materials", "planning"];
-    const parsed = args as Record<string, unknown>;
-    if (!parsed.entity || !validEntities.includes(String(parsed.entity))) {
+    const toolArgs = args as Record<string, unknown>;
+    if (!toolArgs.entity || !validEntities.includes(String(toolArgs.entity))) {
       return NextResponse.json(
         { error: "AI produceerde een onbekend entiteittype. Probeer de vraag te herformuleren." },
         { status: 422 },
@@ -143,9 +173,9 @@ export async function POST(req: NextRequest) {
     }
 
     intent = {
-      entity: parsed.entity as CrmQueryIntent["entity"],
-      filters: typeof parsed.filters === "object" && parsed.filters !== null
-        ? (parsed.filters as CrmQueryIntent["filters"])
+      entity: toolArgs.entity as CrmQueryIntent["entity"],
+      filters: typeof toolArgs.filters === "object" && toolArgs.filters !== null
+        ? (toolArgs.filters as CrmQueryIntent["filters"])
         : {},
     };
   } catch (err: unknown) {
@@ -179,6 +209,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       question,
+      contextLength: context.length,
       ...result,
     });
   } catch (err: unknown) {

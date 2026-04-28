@@ -74,8 +74,8 @@ export function AuthForm({ mode }: AuthFormProps) {
       </h1>
       <p className="mt-2 text-sm text-blue-700">
         {isLogin
-          ? "Log in om je dakdekkers CRM te openen."
-          : "Maak een account aan voor je CRM omgeving."}
+          ? "Log in om je dakdekkers ERP te openen."
+          : "Maak een account aan voor je ERP omgeving."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">

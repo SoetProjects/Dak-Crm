@@ -78,7 +78,7 @@ const OTHER_PROVIDERS = [
   { value: "MOLLIE", label: "Mollie", description: "Online betalingen verwerken via iDEAL, creditcard en meer." },
   { value: "OPENWEATHER", label: "OpenWeather", description: "Weersomstandigheden ophalen voor planningswaarschuwingen." },
   { value: "POSTCODE_API", label: "Postcode API", description: "Automatisch adres invullen op basis van postcode + huisnummer." },
-  { value: "EMAIL", label: "E-mail (SMTP)", description: "Verstuur offertes en facturen per e-mail vanuit DakCRM." },
+  { value: "EMAIL", label: "E-mail (SMTP)", description: "Verstuur offertes en facturen per e-mail vanuit DakERP." },
 ];
 
 const STATUS_BADGE: Record<string, string> = {

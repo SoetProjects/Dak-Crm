@@ -737,7 +737,7 @@ export const CRM_QUERY_TOOL = {
   },
 } as const;
 
-export const CRM_SYSTEM_PROMPT = `You are an AI assistant for a Dutch roofing company CRM called DakCRM.
+export const CRM_SYSTEM_PROMPT = `You are an AI assistant for a Dutch roofing company ERP called DakERP.
 Your task is to translate questions (Dutch or English) into structured database queries using the query_crm function.
 
 Business context:

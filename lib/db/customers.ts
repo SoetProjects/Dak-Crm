@@ -10,7 +10,6 @@ export async function getCustomers(companyId: string, search?: string) {
   return db.customer.findMany({
     where: {
       companyId,
-      isActive: true,
       ...(search
         ? {
             OR: [

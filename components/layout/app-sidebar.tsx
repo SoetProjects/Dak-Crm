@@ -12,7 +12,7 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    label: "CRM",
+    label: "Relatiebeheer",
     items: [
       { href: "/leads", label: "Leads" },
       { href: "/customers", label: "Klanten" },
@@ -54,7 +54,7 @@ export function AppSidebar() {
   return (
     <aside className="w-full shrink-0 border-b border-slate-200 bg-white md:w-56 md:border-b-0 md:border-r md:min-h-screen">
       <div className="px-4 py-4 border-b border-slate-100">
-        <p className="text-lg font-bold text-[var(--primary)]">DakCRM</p>
+        <p className="text-lg font-bold text-[var(--primary)]">DakERP</p>
         <p className="text-xs text-slate-400">ERP voor dakdekkers</p>
       </div>
 

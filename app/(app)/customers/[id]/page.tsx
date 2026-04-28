@@ -22,7 +22,6 @@ async function updateCustomer(formData: FormData) {
   await db.customer.updateMany({
     where: { id, companyId: session.companyId },
     data: {
-      customerType: String(formData.get("customerType") ?? "PRIVATE") as never,
       name: String(formData.get("name") ?? ""),
       contactPerson: String(formData.get("contactPerson") ?? "") || null,
       phone: String(formData.get("phone") ?? "") || null,

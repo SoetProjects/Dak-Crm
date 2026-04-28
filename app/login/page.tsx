@@ -61,7 +61,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl bg-[var(--card)] p-8 shadow-sm">
-        <h1 className="text-3xl font-semibold text-[var(--primary)]">DakCRM</h1>
+        <h1 className="text-3xl font-semibold text-[var(--primary)]">DakERP</h1>
         <p className="mt-2 text-sm text-slate-600">
           Log in om leads, planning en jobs te beheren.
         </p>

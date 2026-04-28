@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DakCRM",
-  description: "SaaS CRM en planning voor dakdekkersbedrijven",
+  title: "DakERP",
+  description: "SaaS ERP en planning voor dakdekkersbedrijven",
 };
 
 export default function RootLayout({

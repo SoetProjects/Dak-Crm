@@ -238,6 +238,15 @@ export default function AssistantPage() {
     const trimmed = q.trim();
     if (!trimmed || loading) return;
 
+    // Snapshot the current messages before adding the new user turn.
+    // We send the last 10 messages (= last 5 exchanges) as conversation
+    // context so OpenAI can resolve follow-up references like "die klanten"
+    // or "hetzelfde filter maar dan voor zakelijk".
+    const context = messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.content }));
+
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: trimmed };
     setMessages((prev) => [...prev, userMsg]);
     setQuestion("");
@@ -247,7 +256,7 @@ export default function AssistantPage() {
       const res = await fetch("/api/ai/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmed }),
+        body: JSON.stringify({ question: trimmed, context }),
       });
 
       const json = await res.json();
@@ -301,7 +310,18 @@ export default function AssistantPage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-gray-900">AI Assistent</h1>
-              <p className="text-xs text-gray-500">Stel vragen over klanten, werkbonnen, offertes en meer</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-gray-500">Stel vragen over klanten, werkbonnen, offertes en meer</p>
+                {messages.filter((m) => m.role === "user" || m.role === "assistant").length > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full"
+                    title={`De AI onthoudt de laatste ${Math.min(messages.filter((m) => m.role === "user" || m.role === "assistant").length, 10)} berichten als context`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
+                    Geheugen actief
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           {messages.length > 0 && (
@@ -326,7 +346,7 @@ export default function AssistantPage() {
               </div>
               <h2 className="text-xl font-semibold text-gray-900 mb-1">Hoe kan ik je helpen?</h2>
               <p className="text-gray-500 text-sm max-w-xs mx-auto">
-                Stel een vraag in gewoon Nederlands en ik zoek de gegevens op uit je CRM.
+                Stel een vraag in gewoon Nederlands en ik zoek de gegevens op uit je ERP.
               </p>
             </div>
 

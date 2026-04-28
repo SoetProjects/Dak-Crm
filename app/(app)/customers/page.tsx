@@ -20,7 +20,6 @@ async function createCustomer(formData: FormData) {
   await db.customer.create({
     data: {
       companyId: session.companyId,
-      customerType: String(formData.get("customerType") ?? "PRIVATE") as never,
       name: String(formData.get("name") ?? ""),
       contactPerson: String(formData.get("contactPerson") ?? "") || null,
       phone: String(formData.get("phone") ?? "") || null,
