@@ -197,7 +197,7 @@ export default async function QuotePrintPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Notes */}
+        {/* Notes / Terms */}
         {quote.notes && (
           <>
             <hr className="my-6 border-slate-200" />
@@ -211,6 +211,30 @@ export default async function QuotePrintPage({ params }: Props) {
             </div>
           </>
         )}
+
+        {/* Signature / Approval area */}
+        <hr className="my-8 border-slate-200" />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-6">Akkoord</p>
+          <div className="grid grid-cols-2 gap-10">
+            <div>
+              <p className="text-xs text-slate-500 mb-10">Handtekening namens {company.name}</p>
+              <div className="border-b border-slate-400"></div>
+              <div className="mt-2 grid grid-cols-2 gap-4 text-xs text-slate-400">
+                <p>Naam: _________________________</p>
+                <p>Datum: _______________________</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-10">Handtekening opdrachtgever</p>
+              <div className="border-b border-slate-400"></div>
+              <div className="mt-2 grid grid-cols-2 gap-4 text-xs text-slate-400">
+                <p>Naam: _________________________</p>
+                <p>Datum: _______________________</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="mt-12 border-t border-slate-200 pt-4 text-xs text-slate-400 text-center">

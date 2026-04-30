@@ -165,7 +165,7 @@ export default async function JobDetailPage({ params }: Props) {
   const job = await db.job.findFirst({
     where: { id, companyId: session.companyId },
     include: {
-      customer: { select: { id: true, name: true, phone: true } },
+      customer: { select: { id: true, name: true, phone: true, email: true } },
       quote: { select: { id: true, quoteNumber: true } },
       invoices: { select: { id: true, invoiceNumber: true, status: true }, orderBy: { createdAt: "desc" }, take: 1 },
       jobNotes: {
@@ -368,9 +368,36 @@ export default async function JobDetailPage({ params }: Props) {
               {job.customer.name}
             </Link>
             {job.customer.phone && (
-              <p className="mt-1 text-xs text-slate-500">{job.customer.phone}</p>
+              <a href={`tel:${job.customer.phone.replace(/\s/g, "")}`} className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 hover:text-[var(--accent)]">
+                <span>📞</span>
+                <span>{job.customer.phone}</span>
+              </a>
+            )}
+            {job.customer.email && (
+              <a href={`mailto:${job.customer.email}`} className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 hover:underline truncate">
+                <span>✉</span>
+                <span className="truncate">{job.customer.email}</span>
+              </a>
             )}
           </section>
+
+          {/* Job address */}
+          {(job.address || job.city) && (
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 text-sm font-semibold text-[var(--primary)]">Werklocatie</h3>
+              <p className="text-xs text-slate-600">{[job.address, job.postalCode, job.city].filter(Boolean).join(", ")}</p>
+              {(job.address || job.city) && (
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent([job.address, job.postalCode, job.city].filter(Boolean).join(" "))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
+                >
+                  📍 Open in Google Maps
+                </a>
+              )}
+            </section>
+          )}
 
           {/* Quote */}
           {job.quote && (

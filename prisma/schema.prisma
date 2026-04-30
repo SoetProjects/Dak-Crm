@@ -134,9 +134,10 @@ model Company {
   city      String?
   phone     String?
   email     String?
-  website   String?
-  logoUrl   String?
-  createdAt DateTime @default(now())
+  website     String?
+  bankAccount String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   users            User[]

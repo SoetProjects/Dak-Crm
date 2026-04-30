@@ -83,35 +83,34 @@ export default async function PlanningPage({ searchParams }: Props) {
   const monday = addDays(startOfDay(today), -((today.getDay() + 6) % 7) + weekOffset * 7);
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
 
-  const [planningItems, jobs, activeJobs] = await Promise.all([
-    db.planningItem.findMany({
-      where: {
-        companyId: session.companyId,
-        startAt: { gte: days[0], lte: endOfDay(days[6]) },
-      },
-      include: {
-        job: { include: { customer: { select: { name: true } } } },
-      },
-      orderBy: { startAt: "asc" },
-    }),
-    db.job.findMany({
-      where: {
-        companyId: session.companyId,
-        status: { notIn: ["COMPLETED", "CANCELLED"] },
-        scheduledStart: { gte: days[0], lte: endOfDay(days[6]) },
-      },
-      include: { customer: { select: { name: true } } },
-      orderBy: { scheduledStart: "asc" },
-    }),
-    db.job.findMany({
-      where: {
-        companyId: session.companyId,
-        status: { notIn: ["COMPLETED", "CANCELLED"] },
-      },
-      orderBy: { scheduledStart: "asc" },
-      select: { id: true, title: true, jobNumber: true },
-    }),
-  ]);
+  // Sequential queries — Supabase pooler uses connection_limit=1
+  const planningItems = await db.planningItem.findMany({
+    where: {
+      companyId: session.companyId,
+      startAt: { gte: days[0], lte: endOfDay(days[6]) },
+    },
+    include: {
+      job: { include: { customer: { select: { name: true } } } },
+    },
+    orderBy: { startAt: "asc" },
+  });
+  const jobs = await db.job.findMany({
+    where: {
+      companyId: session.companyId,
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
+      scheduledStart: { gte: days[0], lte: endOfDay(days[6]) },
+    },
+    include: { customer: { select: { name: true } } },
+    orderBy: { scheduledStart: "asc" },
+  });
+  const activeJobs = await db.job.findMany({
+    where: {
+      companyId: session.companyId,
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
+    },
+    orderBy: { scheduledStart: "asc" },
+    select: { id: true, title: true, jobNumber: true },
+  });
 
   const prevWeek = weekOffset - 1;
   const nextWeek = weekOffset + 1;
@@ -155,8 +154,8 @@ export default async function PlanningPage({ searchParams }: Props) {
         </form>
       </section>
 
-      {/* Week view */}
-      <section className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
+      {/* Week view — desktop only */}
+      <section className="hidden md:block rounded-xl border border-slate-200 bg-white overflow-x-auto">
         <div className="grid min-w-[700px]" style={{ gridTemplateColumns: `repeat(7, minmax(0, 1fr))` }}>
           {days.map((day, i) => {
             const isToday = startOfDay(day).getTime() === startOfDay(today).getTime();
@@ -220,6 +219,80 @@ export default async function PlanningPage({ searchParams }: Props) {
           })}
         </div>
       </section>
+
+      {/* Mobile day-list — hidden on desktop */}
+      <div className="md:hidden space-y-3">
+        {days.map((day, i) => {
+          const isToday = startOfDay(day).getTime() === startOfDay(today).getTime();
+          const dayJobs = jobs.filter(j =>
+            j.scheduledStart && startOfDay(new Date(j.scheduledStart)).getTime() === startOfDay(day).getTime()
+          );
+          const dayPlanning = planningItems.filter(p =>
+            startOfDay(new Date(p.startAt)).getTime() === startOfDay(day).getTime()
+          );
+          const isEmpty = dayJobs.length === 0 && dayPlanning.length === 0;
+          return (
+            <section key={i} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className={`px-4 py-2.5 border-b border-slate-100 flex items-center gap-2 ${isToday ? "bg-blue-50" : ""}`}>
+                <p className={`text-sm font-semibold capitalize ${isToday ? "text-[var(--primary)]" : "text-slate-600"}`}>
+                  {day.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "short" })}
+                </p>
+                {isToday && <span className="text-xs font-medium text-[var(--accent)] bg-white border border-[var(--accent)] rounded-full px-2 py-0.5">Vandaag</span>}
+              </div>
+              {isEmpty ? (
+                <p className="px-4 py-3 text-xs text-slate-400">Geen werk gepland</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {dayJobs.map(j => (
+                    <Link
+                      key={j.id}
+                      href={`/jobs/${j.id}`}
+                      className={`flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition border-l-4 ${STATUS_COLORS[j.status] ?? "border-slate-300"}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-[var(--primary)] text-sm truncate">{j.title}</p>
+                        <p className="text-xs text-slate-500">{j.customer.name}</p>
+                        {j.scheduledStart && (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {new Date(j.scheduledStart).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-500 shrink-0 pt-0.5">{STATUS_LABELS[j.status] ?? j.status}</span>
+                    </Link>
+                  ))}
+                  {dayPlanning.map(p => (
+                    <div key={p.id} className="flex items-start gap-3 px-4 py-3 border-l-4 border-purple-400">
+                      <div className="min-w-0 flex-1">
+                        {p.job ? (
+                          <Link href={`/jobs/${p.job.id}`} className="block hover:underline">
+                            <p className="font-medium text-[var(--primary)] text-sm truncate">{p.title}</p>
+                            <p className="text-xs text-slate-500">{p.job.customer.name}</p>
+                          </Link>
+                        ) : (
+                          <p className="font-medium text-slate-700 text-sm truncate">{p.title}</p>
+                        )}
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {new Date(p.startAt).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                          {" — "}
+                          {new Date(p.endAt).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <span className="text-xs text-purple-600 shrink-0 pt-0.5">Afspraak</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })}
+        {jobs.length === 0 && planningItems.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+            <p className="text-sm font-medium text-slate-600">Geen werk gepland deze week</p>
+            <p className="mt-1 text-xs text-slate-400">Voeg een werkbon toe via het formulier hierboven.</p>
+          </div>
+        )}
+      </div>
 
       {/* Today's jobs list */}
       {(() => {

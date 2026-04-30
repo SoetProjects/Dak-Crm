@@ -91,6 +91,18 @@ export default async function DashboardPage() {
     where: { companyId: cid, status: "OVERDUE" },
   });
 
+  const overdueLeads = await db.lead.count({
+    where: {
+      companyId: cid,
+      followUpAt: { lt: today },
+      status: { notIn: ["WON", "LOST"] },
+    },
+  });
+
+  const acceptedQuotes = await db.quote.count({
+    where: { companyId: cid, status: "ACCEPTED" },
+  });
+
   const todayPlanning = await db.planningItem.findMany({
     where: { companyId: cid, startAt: { gte: todayStart, lte: todayEnd } },
     include: { job: { include: { customer: { select: { name: true } } } } },
@@ -101,7 +113,14 @@ export default async function DashboardPage() {
     { label: "Jobs vandaag", value: String(jobsToday.length), href: "/jobs" },
     { label: "Afspraken vandaag", value: String(todayPlanning.length), href: "/planning" },
     { label: "Open leads", value: String(openLeadsCount), href: "/leads" },
-    { label: "Open offertes", value: String(openQuotesCount), href: "/quotes" },
+    {
+      label: "Te laat opvolgen",
+      value: String(overdueLeads),
+      href: "/leads?filter=overdue",
+      ...(overdueLeads > 0 ? { highlight: "amber" } : {}),
+    },
+    { label: "Open offertes", value: String(openQuotesCount), href: "/quotes?filter=open" },
+    { label: "Geaccepteerde offertes", value: String(acceptedQuotes), href: "/quotes?filter=accepted" },
     { label: "Actieve werkbonnen", value: String(activeJobs), href: "/jobs" },
     { label: "Wacht (materiaal/weer)", value: String(waitingJobs), href: "/jobs", ...(waitingJobs > 0 ? { highlight: "amber" } : {}) },
     {
@@ -117,6 +136,12 @@ export default async function DashboardPage() {
     },
   ];
 
+  const allZero =
+    openLeadsCount === 0 &&
+    openQuotesCount === 0 &&
+    activeJobs === 0 &&
+    openInvoices._count === 0;
+
   return (
     <div className="space-y-6">
       <MobileRedirect to="/mobile" />
@@ -128,7 +153,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* KPIs */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 grid-cols-2 xl:grid-cols-5">
         {stats.map((item) => (
           <Link
             key={item.label}
@@ -146,6 +171,17 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </section>
+
+      {/* Zero-state guidance */}
+      {allZero && (
+        <section className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+          <p className="text-sm font-medium text-slate-600">Alles op orde — geen openstaande taken</p>
+          <p className="mt-1 text-xs text-slate-400">
+            Geen open leads, offertes, werkbonnen of facturen. Maak een nieuwe lead aan om te beginnen.
+          </p>
+          <Link href="/leads" className="mt-3 inline-block btn-primary text-sm">+ Nieuwe lead aanmaken</Link>
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Today's jobs */}

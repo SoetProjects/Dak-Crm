@@ -34,6 +34,7 @@ export default async function InvoicePrintPage({ params }: Props) {
           website: true,
           kvkNumber: true,
           vatNumber: true,
+          bankAccount: true,
         },
       },
       customer: {
@@ -204,19 +205,26 @@ export default async function InvoicePrintPage({ params }: Props) {
         </div>
 
         {/* Payment info */}
-        {dueDate && invoice.status !== "PAID" && (
+        {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
           <>
             <hr className="my-6 border-slate-200" />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Betalingsinstructie</p>
-              <p className="mt-2 text-slate-700">
-                Wij verzoeken u vriendelijk het bedrag van{" "}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Betalingsinstructie</p>
+              <p className="text-slate-700">
+                Gelieve het totaalbedrag van{" "}
                 <strong>€{Number(invoice.totalAmount).toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</strong>{" "}
-                te voldoen vóór <strong>{dueDate}</strong>.
+                te voldoen onder vermelding van het factuurnummer{" "}
+                <strong>{invoice.invoiceNumber}</strong>
+                {dueDate && <>, uiterlijk vóór <strong>{dueDate}</strong></>}.
               </p>
-              {company.name && (
-                <p className="mt-1 text-slate-600">Ten name van: {company.name}</p>
-              )}
+              <div className="mt-3 space-y-1 text-sm text-slate-600">
+                {company.bankAccount && (
+                  <p>IBAN: <span className="font-mono font-medium text-slate-800">{company.bankAccount}</span></p>
+                )}
+                {company.name && (
+                  <p>Ten name van: <span className="font-medium text-slate-800">{company.name}</span></p>
+                )}
+              </div>
             </div>
           </>
         )}

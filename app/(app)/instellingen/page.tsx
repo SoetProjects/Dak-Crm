@@ -8,6 +8,28 @@ import { revalidatePath } from "next/cache";
 // Server actions
 // ─────────────────────────────────────────────
 
+async function updateCompanyProfile(formData: FormData) {
+  "use server";
+  const session = await getAppSession();
+  if (!session.isAuthenticated || !isDatabaseReady()) return;
+  await db.company.update({
+    where: { id: session.companyId },
+    data: {
+      name: String(formData.get("name") ?? "").trim() || undefined,
+      phone: String(formData.get("phone") ?? "").trim() || null,
+      email: String(formData.get("email") ?? "").trim() || null,
+      website: String(formData.get("website") ?? "").trim() || null,
+      address: String(formData.get("address") ?? "").trim() || null,
+      postalCode: String(formData.get("postalCode") ?? "").trim() || null,
+      city: String(formData.get("city") ?? "").trim() || null,
+      kvkNumber: String(formData.get("kvkNumber") ?? "").trim() || null,
+      vatNumber: String(formData.get("vatNumber") ?? "").trim() || null,
+      bankAccount: String(formData.get("bankAccount") ?? "").trim() || null,
+    },
+  });
+  revalidatePath("/instellingen");
+}
+
 async function saveSnelStartConfig(formData: FormData) {
   "use server";
   const session = await getAppSession();
@@ -107,6 +129,7 @@ export default async function InstellingenPage() {
   }
 
   await ensureCompany(session.companyId);
+  const company = await db.company.findFirst({ where: { id: session.companyId } });
   const integrations = await db.integration.findMany({
     where: { companyId: session.companyId },
     include: {
@@ -129,8 +152,65 @@ export default async function InstellingenPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-[var(--primary)]">Instellingen</h1>
-        <p className="mt-1 text-sm text-slate-500">Integraties en systeeminstellingen</p>
+        <p className="mt-1 text-sm text-slate-500">Bedrijfsprofiel, integraties en systeeminstellingen</p>
       </div>
+
+      {/* ─── Bedrijfsprofiel ─────────────────── */}
+      <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h2 className="font-semibold text-[var(--primary)]">Bedrijfsprofiel</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Deze gegevens worden gebruikt op offertes, facturen en in klantcommunicatie.
+          </p>
+        </div>
+        <div className="px-5 py-5">
+          <form action={updateCompanyProfile} className="grid gap-3 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Bedrijfsnaam *</label>
+              <input name="name" defaultValue={company?.name ?? ""} required placeholder="Naam van uw bedrijf" className="input" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Telefoon</label>
+              <input name="phone" defaultValue={company?.phone ?? ""} placeholder="+31 6 00 00 00 00" className="input" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">E-mail</label>
+              <input name="email" type="email" defaultValue={company?.email ?? ""} placeholder="info@uwbedrijf.nl" className="input" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Website</label>
+              <input name="website" defaultValue={company?.website ?? ""} placeholder="https://www.uwbedrijf.nl" className="input" />
+            </div>
+
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide md:col-span-2 mt-2">Adres</p>
+            <input name="address" defaultValue={company?.address ?? ""} placeholder="Straat + huisnummer" className="input" />
+            <div className="grid grid-cols-2 gap-3">
+              <input name="postalCode" defaultValue={company?.postalCode ?? ""} placeholder="Postcode" className="input" />
+              <input name="city" defaultValue={company?.city ?? ""} placeholder="Stad" className="input" />
+            </div>
+
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide md:col-span-2 mt-2">Financieel</p>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">KVK-nummer</label>
+              <input name="kvkNumber" defaultValue={company?.kvkNumber ?? ""} placeholder="12345678" className="input" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">BTW-nummer</label>
+              <input name="vatNumber" defaultValue={company?.vatNumber ?? ""} placeholder="NL123456789B01" className="input" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-slate-600 mb-1">IBAN bankrekeningnummer</label>
+              <input name="bankAccount" defaultValue={company?.bankAccount ?? ""} placeholder="NL00 BANK 0000 0000 00" className="input" />
+              <p className="mt-1 text-xs text-slate-400">Wordt getoond op facturen als betaalinstructie.</p>
+            </div>
+
+            <div className="md:col-span-2 pt-2">
+              <button type="submit" className="btn-primary">Bedrijfsprofiel opslaan</button>
+            </div>
+          </form>
+        </div>
+      </section>
 
       {/* ─── SnelStart ─────────────────────────── */}
       <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
