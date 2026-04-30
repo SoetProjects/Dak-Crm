@@ -1,155 +1,275 @@
-# DakERP — Functional Test Checklist
+# DakERP — Functionele testchecklist
 
-**Goal:** Verify the full lead → customer → quote → job → invoice flow works end-to-end before any UI work.  
-**Environment:** Vercel production (or local `npm run dev` with DATABASE_URL set).  
-**Pre-condition:** Logged in as a valid user. Dashboard is accessible.
-
----
-
-## Flow 1 — Create a Lead
-
-**Page:** `/leads`
-
-| Step | Action | Expected result | Gap / missing feature |
-|------|--------|----------------|-----------------------|
-| 1.1 | Fill in the "Nieuwe lead" form: name = "Test Lood BV", phone = "0612345678", email = "test@lood.nl", city = "Amsterdam", request type = "Lekkage" | Form submits, page reloads | — |
-| 1.2 | Check the lead list | "Test Lood BV" appears with status badge "Nieuw" | — |
-| 1.3 | Click the lead row to open detail | `/leads/[id]` loads, shows all filled fields | — |
-| 1.4 | Try adding a description on creation | Description field is NOT available on the create form | ⚠️ **Missing:** `description` field in the create-lead form. Can only be added after creation via the edit form. |
-| 1.5 | Change status to "Benaderd" via the edit form, click Opslaan | Status badge updates to "Benaderd" | — |
-
-**Dashboard impact:** "Open leads" counter increases by 1.
+Bijgewerkt: april 2026  
+Doel: Handmatig testen van de volledige ERP-flow van lead tot betaalde factuur.
 
 ---
 
-## Flow 2 — Convert Lead to Customer
-
-**Page:** `/leads/[id]`
-
-| Step | Action | Expected result | Gap / missing feature |
-|------|--------|----------------|-----------------------|
-| 2.1 | Open the lead created in Flow 1 | Detail page shows "Omzetten naar klant" button (only visible when no customer is linked yet) | — |
-| 2.2 | Click "Omzetten naar klant" | Browser redirects to `/customers/[new-id]` | — |
-| 2.3 | Verify customer data | Customer name, phone, email, and service address are copied from the lead | ⚠️ **Gap:** `customerType` is not copied — customer is saved with the schema default (PRIVATE). No way to set it during conversion. |
-| 2.4 | Go back to `/leads` | Lead status is now "Gewonnen" (WON) | — |
-| 2.5 | Try clicking "Omzetten naar klant" again on the same lead | Button is hidden (lead already has a `customerId`) | — |
-
-**Dashboard impact:** "Open leads" counter decreases by 1 (WON leads are excluded).
+## Volledige flow: Lead → Klant → Offerte → Werkbon → Factuur → Betaling → Dashboard
 
 ---
 
-## Flow 3 — Create a Quote from a Customer
+### Stap 1 – Inloggen
 
-**Page:** `/quotes` or via "Nieuwe offerte" button on `/customers/[id]`
-
-| Step | Action | Expected result | Gap / missing feature |
-|------|--------|----------------|-----------------------|
-| 3.1 | Go to `/quotes`, select the customer from the dropdown, click "Nieuwe offerte" | Quote is created with number `OFF-YYYY-0001`, status "Concept", redirects to `/quotes/[id]` | — |
-| 3.2 | On the quote detail page, set a title (e.g. "Lekkage reparatie Prinsengracht") and a valid-until date, click Opslaan | Title and date are saved | — |
-| 3.3 | Add a line item: description = "Arbeid monteur", quantity = 4, unit = "uur", price = 65, VAT = 21% | Line appears in the table; subtotal, VAT, and total are recalculated automatically | — |
-| 3.4 | Add a second line item: description = "Materialen", quantity = 1, unit = "post", price = 120 | Totals update again | — |
-| 3.5 | Delete one line | Line disappears, totals recalculate | — |
-| 3.6 | Change quote status to "Verzonden" using the status button | Status badge updates to "Verzonden" | ⚠️ **Missing:** No email/PDF sending — status change is manual only. Actual sending to customer is not implemented. |
-| 3.7 | Try the "AI Offerte" generator at `/quotes/genereren` | Form loads with customer dropdown; requires `OPENAI_API_KEY` in environment | ⚠️ **Requires:** `OPENAI_API_KEY` set in Vercel env vars. |
-
-**Dashboard impact:** "Open offertes" counter increases by 1 (status SENT counts).
+| | Detail |
+|---|---|
+| **Pagina** | `/login` |
+| **Actie** | Vul je e-mail en wachtwoord in en klik op "Inloggen" |
+| **Verwacht** | Je wordt doorgestuurd naar `/dashboard` |
+| **Controle** | Dashboard laadt zonder foutmelding; e-mailadres zichtbaar in header |
 
 ---
 
-## Flow 4 — Accept Quote and Create Job
+### Stap 2 – Lead aanmaken
 
-**Page:** `/quotes/[id]`
-
-| Step | Action | Expected result | Gap / missing feature |
-|------|--------|----------------|-----------------------|
-| 4.1 | Open the quote from Flow 3 | Status is "Verzonden" | — |
-| 4.2 | Click the "Maak werkbon" button | Quote status changes to "Geaccepteerd"; browser redirects to `/jobs/[new-id]` with job number `JOB-YYYY-0001` | ⚠️ **Note:** The "Maak werkbon" button triggers the status change AND job creation in a single action. Clicking it on a DRAFT quote skips the SENT step. |
-| 4.3 | Verify job detail page | Job is linked to the correct customer and quote; status is "Gepland"; `jobType` is "Overig" (hardcoded default) | ⚠️ **Gap:** `jobType` is always set to `OTHER` when creating from a quote. No way to choose it during conversion. |
-| 4.4 | Set a scheduled date: fill `Gepland van` and `Gepland tot`, click Opslaan | Dates are saved | — |
-| 4.5 | Set job address if different from customer address | Address fields save correctly | — |
-| 4.6 | Change job status to "In uitvoering" | Status badge updates | — |
-
-**Dashboard impact:** "Open offertes" drops by 1 (ACCEPTED is excluded); "Actieve werkbonnen" increases by 1.  
-**Dashboard impact (if today's date is set):** "Jobs vandaag" increases by 1 if `scheduledStart` is today.
+| | Detail |
+|---|---|
+| **Pagina** | `/leads` |
+| **Actie** | Vul in: naam, telefoon, e-mail, adres, type aanvraag, bron, omschrijving. Klik "Lead opslaan" |
+| **Verwacht** | Lead verschijnt in de lijst met status "Nieuw" |
+| **Controle** | Lead is klikbaar en toont alle ingevoerde gegevens |
 
 ---
 
-## Flow 5 — Complete Job and Create Invoice
+### Stap 3 – Opvolgdatum instellen
 
-### 5a — Complete the job
-
-**Page:** `/jobs/[id]`
-
-| Step | Action | Expected result | Gap / missing feature |
-|------|--------|----------------|-----------------------|
-| 5.1 | Open the job from Flow 4 | Status is "In uitvoering" | — |
-| 5.2 | Add a job note via the notes form | Note appears in the notes list with timestamp | ⚠️ **Note:** Requires a `User` record in the database linked to `session.email`. The app auto-creates one on first note if missing — verify this works. |
-| 5.3 | Click "Afgerond" status button | Status changes to "Afgerond"; `completedAt` timestamp is set | — |
-| 5.4 | Verify job no longer appears in "Actieve werkbonnen" | — | — |
-
-**Dashboard impact:** "Actieve werkbonnen" decreases by 1.
-
-### 5b — Create the invoice
-
-**Page:** `/invoices`
-
-| Step | Action | Expected result | Gap / missing feature |
-|------|--------|----------------|-----------------------|
-| 5.5 | Go to `/invoices`, select the customer and the job from the dropdowns, click "Nieuwe factuur" | Invoice is created with number `FAC-YYYY-0001`; quote lines are automatically copied as invoice lines | — |
-| 5.6 | Open the invoice detail at `/invoices/[id]` | Invoice lines, subtotal, VAT, and total are pre-filled from the quote | — |
-| 5.7 | Change invoice status to "Verzonden" | Status updates | ⚠️ **Missing:** No actual email/PDF sending. Status is changed manually. |
-| 5.8 | Check the open invoice amount on the dashboard | "Openstaand factuurbedrag" increases by the invoice total | — |
-| 5.9 | Change invoice status to "Betaald" | Status updates | — |
-| 5.10 | Check dashboard again | "Openstaand factuurbedrag" and "Facturen open" decrease | — |
-
-⚠️ **Missing feature — "Create invoice from job" shortcut:** There is no button on `/jobs/[id]` to create an invoice directly. The user must navigate to `/invoices` and manually re-select the customer and job.
+| | Detail |
+|---|---|
+| **Pagina** | `/leads/[id]` |
+| **Actie** | Kies een datum bij "Opvolgdatum" en klik "Opslaan" |
+| **Verwacht** | Opvolgdatum verschijnt als oranje kaart in de zijbalk; datum in de lijst is oranje/rood (afhankelijk of datum al verstreken is) |
+| **Controle** | Datum klopt in zijbalk; kleur past bij urgentie |
 
 ---
 
-## Flow 6 — Dashboard Numbers
+### Stap 4 – Status wijzigen via snelle knoppen
 
-**Page:** `/dashboard`
-
-After completing all flows above, verify each KPI tile shows the expected value:
-
-| KPI tile | What it counts | Expected after full flow |
-|----------|---------------|--------------------------|
-| Jobs vandaag | Jobs with `scheduledStart` = today, not COMPLETED/CANCELLED | 0 (job was completed) |
-| Afspraken vandaag | Planning items with `startAt` = today | 0 unless a planning item was added |
-| Open leads | Leads NOT in WON / LOST | 0 (converted lead is WON) |
-| Open offertes | Quotes in DRAFT or SENT | 0 (quote was accepted) |
-| Actieve werkbonnen | Jobs in PLANNED / IN_PROGRESS / WAITING_* | 0 (job was completed) |
-| Wacht (materiaal/weer) | Jobs in WAITING_FOR_MATERIAL / WAITING_FOR_WEATHER | 0 |
-| Openstaand factuurbedrag | Sum of SENT + OVERDUE invoices | 0 (invoice was paid) |
-| Facturen open | Count of SENT + OVERDUE invoices | 0 |
-
-⚠️ **Note:** Dashboard numbers are **server-rendered on each page load** — no real-time updates. Reload the page after each action to see updated counts.
+| | Detail |
+|---|---|
+| **Pagina** | `/leads/[id]` |
+| **Actie** | Klik op "→ Benaderd" (of een andere statusknop) |
+| **Verwacht** | Status badge in de header verandert direct |
+| **Controle** | Juiste kleur wordt getoond; statusknop voor nieuwe status verdwijnt uit de rij |
 
 ---
 
-## Known Missing Features (Summary)
+### Stap 5 – Lead omzetten naar klant
 
-| # | Feature | Affected flow | Priority |
-|---|---------|--------------|----------|
-| M1 | `description` field missing from lead create form | Flow 1 | Low |
-| M2 | `customerType` not set during lead → customer conversion | Flow 2 | Medium |
-| M3 | `jobType` always defaults to OTHER when creating from quote | Flow 4 | Medium |
-| M4 | No "Create invoice from job" button on `/jobs/[id]` | Flow 5 | High |
-| M5 | No PDF generation or email sending for quotes/invoices | Flows 3, 5 | High |
-| M6 | Planning item creation not integrated into job flow | Flow 4 | Medium |
-| M7 | No quote PDF preview or print view | Flow 3 | Medium |
-| M8 | No customer activity summary or last-contact date on customer page | General | Low |
+| | Detail |
+|---|---|
+| **Pagina** | `/leads/[id]` |
+| **Actie** | Kies klanttype in het dropdown ("Particulier", "Zakelijk", "VvE", "Aannemer") en klik "Omzetten naar klant" |
+| **Verwacht** | Je wordt doorgestuurd naar de klantpagina; lead status wordt "Gewonnen" |
+| **Controle** | Klant heeft het gekozen klanttype als badge; klantpagina toont naam, telefoon, e-mail |
 
 ---
 
-## Quick Smoke Test (5 minutes)
+### Stap 6 – Klant openen en controleren
 
-If you only have time for a quick check, run these 5 actions:
+| | Detail |
+|---|---|
+| **Pagina** | `/customers/[id]` |
+| **Actie** | Open de klant; controleer gegevens |
+| **Verwacht** | Naam, klanttype badge, adresgegevens, contactinfo zichtbaar |
+| **Controle** | Klanttype kan worden gewijzigd via het bewerkingsformulier en wordt opgeslagen |
 
-1. **`/leads`** — create a lead → should appear in list
-2. **`/leads/[id]`** — click "Omzetten naar klant" → should land on `/customers/[id]`
-3. **`/quotes`** — create a quote for that customer → should get number `OFF-YYYY-XXXX`
-4. **`/quotes/[id]`** — click "Maak werkbon" → should land on `/jobs/[id]`
-5. **`/dashboard`** — reload → "Actieve werkbonnen" should be ≥ 1
+---
 
-If all 5 pass, the core ERP spine is functional.
+### Stap 7 – Offerte aanmaken
+
+| | Detail |
+|---|---|
+| **Pagina** | `/quotes` |
+| **Actie** | Selecteer de klant in het formulier bovenaan; vul titel en eventueel vervaldatum in; klik "Offerte aanmaken" |
+| **Verwacht** | Offerte wordt aangemaakt met status "Concept" en uniek offertenummer |
+| **Controle** | Offerte verschijnt in de lijst; klik erop |
+
+---
+
+### Stap 8 – Offerteregelitems toevoegen
+
+| | Detail |
+|---|---|
+| **Pagina** | `/quotes/[id]` |
+| **Actie** | Vul omschrijving, aantal, eenheid, stukprijs in en klik "+" |
+| **Verwacht** | Regelitem verschijnt in de tabel; subtotaal, BTW en totaal worden herberekend |
+| **Controle** | Herhaal voor meerdere regels; verwijder een regel met "✕" |
+
+---
+
+### Stap 9 – Offerte markeren als verzonden en geaccepteerd
+
+| | Detail |
+|---|---|
+| **Pagina** | `/quotes/[id]` |
+| **Actie** | Klik "Markeer als verzonden"; klik daarna "Markeer als geaccepteerd" |
+| **Verwacht** | Status verandert naar "Verzonden" en daarna "Geaccepteerd" |
+| **Controle** | Knoppen voor niet-toepasselijke statussen verdwijnen |
+
+---
+
+### Stap 10 – Offerte printen / PDF
+
+| | Detail |
+|---|---|
+| **Pagina** | `/quotes/[id]` |
+| **Actie** | Klik "Print / PDF" — er opent een nieuw tabblad |
+| **Verwacht** | Printpagina toont: bedrijfsnaam, klantnaam, offertenummer, datum, regelitems, totalen, eventuele notities |
+| **Controle** | Navigatie en knoppen zijn verborgen tijdens printen (controleer met Ctrl+P of klik "Afdrukken / PDF") |
+
+---
+
+### Stap 11 – Werkbon aanmaken vanuit offerte
+
+| | Detail |
+|---|---|
+| **Pagina** | `/quotes/[id]` |
+| **Actie** | Klik "Werkbon aanmaken" (zichtbaar als status = Geaccepteerd) |
+| **Verwacht** | Werkbon wordt aangemaakt en je wordt doorgestuurd naar de werkbonpagina |
+| **Controle** | Werkbon is gekoppeld aan de offerte; jobtype is niet "Overig" als aanvraagtype bekend is |
+
+---
+
+### Stap 12 – Werkbon openen en controleren
+
+| | Detail |
+|---|---|
+| **Pagina** | `/jobs/[id]` |
+| **Actie** | Controleer alle gegevens |
+| **Verwacht** | Klant, werkbonnummer, type, status, eventuele offertekoppeling zijn zichtbaar in de zijbalk |
+| **Controle** | Statusknop rij zichtbaar; datum/tijd beschikbaar voor bewerking |
+
+---
+
+### Stap 13 – Werkbonstatus bijwerken
+
+| | Detail |
+|---|---|
+| **Pagina** | `/jobs/[id]` |
+| **Actie** | Klik op "→ In uitvoering"; daarna op "→ Afgerond" |
+| **Verwacht** | Status verandert bij elke klik; voltooiingsdatum wordt ingesteld bij "Afgerond" |
+| **Controle** | Statusbadge in header verandert naar de juiste kleur |
+
+---
+
+### Stap 14 – Factuur aanmaken vanuit werkbon
+
+| | Detail |
+|---|---|
+| **Pagina** | `/jobs/[id]` |
+| **Actie** | Klik "Factuur aanmaken" in de zijbalk (alleen zichtbaar als er nog geen factuur is) |
+| **Verwacht** | Je wordt doorgestuurd naar `/invoices` met klant vooringevuld; werkbon is ook geselecteerd |
+| **Controle** | Klik "Factuur aanmaken" in het formulier; factuurregels worden gekopieerd van de offerte |
+
+---
+
+### Stap 15 – Factuur controleren en versturen
+
+| | Detail |
+|---|---|
+| **Pagina** | `/invoices/[id]` |
+| **Actie** | Controleer regelitems, totalen, klantnaam; klik "Verzenden" |
+| **Verwacht** | Status verandert naar "Verzonden" |
+| **Controle** | "Betaald markeren" en "Te laat markeren" knoppen zijn nu zichtbaar |
+
+---
+
+### Stap 16 – Factuur markeren als betaald
+
+| | Detail |
+|---|---|
+| **Pagina** | `/invoices/[id]` |
+| **Actie** | Klik "Betaald markeren" |
+| **Verwacht** | Status verandert naar "Betaald"; betaaldatum verschijnt in zijbalk |
+| **Controle** | Annuleerknop is niet meer zichtbaar; factuur is groen |
+
+---
+
+### Stap 17 – Terugkerende factuur: workflow voor te-laatbetaling
+
+| | Detail |
+|---|---|
+| **Pagina** | `/invoices/[id]` |
+| **Actie** | Markeer een ANDERE factuur als "Te laat" (klik "Te laat markeren" bij een Verzonden factuur) |
+| **Verwacht** | Status verandert naar "Te laat" |
+| **Controle** | Rode badge; "Betaald markeren" is nog steeds zichtbaar |
+
+---
+
+### Stap 18 – Dashboard controleren
+
+| | Detail |
+|---|---|
+| **Pagina** | `/dashboard` |
+| **Actie** | Bekijk alle KPI-kaarten |
+| **Verwacht** | Getallen kloppen: open leads, open offertes, actieve werkbonnen, openstaand factuurbedrag, te late facturen |
+| **Controle** | "Te laat facturen" kaart is rood als er te-laat facturen zijn; "Wacht (materiaal/weer)" is oranje als van toepassing |
+
+---
+
+### Stap 19 – Factuurlijst filteren
+
+| | Detail |
+|---|---|
+| **Pagina** | `/invoices` |
+| **Actie** | Klik op de filterknoppen: "Open", "Te laat", "Betaald", "Alle" |
+| **Verwacht** | Lijst past zich aan op de geselecteerde filter |
+| **Controle** | Actieve filter heeft donkere achtergrond; lege toestand toont hulptekst |
+
+---
+
+### Stap 20 – Dubbele factuur preventie
+
+| | Detail |
+|---|---|
+| **Pagina** | `/jobs/[id]` |
+| **Actie** | Open een werkbon waarvoor al een factuur bestaat |
+| **Verwacht** | De "Factuur aanmaken" knop is vervangen door een groene kaart met een link naar de bestaande factuur |
+| **Controle** | Klikken op de link opent de juiste factuur |
+
+---
+
+### Stap 21 – Mobiele navigatie
+
+| | Detail |
+|---|---|
+| **Device** | Telefoon of browser in 390px breedte (Dev Tools) |
+| **Actie** | Open de app; klik op het hamburger-icoon (☰) |
+| **Verwacht** | Navigatiemenu schuift open; klikken op een link sluit het menu |
+| **Controle** | Geen horizontale overflow op schermen onder 400px breed |
+
+---
+
+### Stap 22 – Lege statussen testen
+
+| Pagina | Verwachte hulptekst bij lege lijst |
+|---|---|
+| `/leads` | "Nog geen leads — Maak je eerste lead aan via het formulier hierboven." |
+| `/customers` | "Nog geen klanten — Maak je eerste klant aan via het formulier hierboven, of converteer een lead." |
+| `/quotes` | "Nog geen offertes — Maak een offerte vanuit een klantpagina, of gebruik het formulier hierboven." |
+| `/jobs` | "Geen actieve werkbonnen — Maak een werkbon vanuit een geaccepteerde offerte." |
+| `/invoices` | "Nog geen facturen — Maak een factuur vanuit een werkbon via het formulier hierboven." |
+
+---
+
+## Bekende beperkingen (voor volgende sprint)
+
+- Geen echte PDF-export (alleen browser print)
+- Geen e-mail of WhatsApp verzending (wel berichtgenerator via AI Opvolging)
+- Geen betaalprovider (Mollie etc.)
+- Geen maandelijkse omzetgrafiek op dashboard
+- Geen planning dagweergave op mobiel
+- Geen notificaties bij verlopende offertes of te-laat facturen
+
+---
+
+## Snelle rooktest (5 minuten)
+
+1. Login → dashboard laadt ✓
+2. Maak lead aan → verschijnt in lijst ✓
+3. Converteer lead → klant aangemaakt ✓
+4. Maak offerte + regelitems → totalen kloppen ✓
+5. Accepteer offerte → maak werkbon ✓
+6. Maak factuur van werkbon → regelitems gekopieerd ✓
+7. Markeer factuur betaald → status groen ✓
+8. Dashboard toont juiste KPIs ✓

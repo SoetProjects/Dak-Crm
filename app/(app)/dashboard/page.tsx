@@ -87,25 +87,34 @@ export default async function DashboardPage() {
     where: { companyId: cid, status: { in: ["WAITING_FOR_MATERIAL", "WAITING_FOR_WEATHER"] } },
   });
 
+  const overdueInvoices = await db.invoice.count({
+    where: { companyId: cid, status: "OVERDUE" },
+  });
+
   const todayPlanning = await db.planningItem.findMany({
     where: { companyId: cid, startAt: { gte: todayStart, lte: todayEnd } },
     include: { job: { include: { customer: { select: { name: true } } } } },
     orderBy: { startAt: "asc" },
   });
 
-  const stats = [
+  const stats: Array<{ label: string; value: string; href: string; highlight?: "red" | "amber" }> = [
     { label: "Jobs vandaag", value: String(jobsToday.length), href: "/jobs" },
     { label: "Afspraken vandaag", value: String(todayPlanning.length), href: "/planning" },
     { label: "Open leads", value: String(openLeadsCount), href: "/leads" },
     { label: "Open offertes", value: String(openQuotesCount), href: "/quotes" },
     { label: "Actieve werkbonnen", value: String(activeJobs), href: "/jobs" },
-    { label: "Wacht (materiaal/weer)", value: String(waitingJobs), href: "/jobs" },
+    { label: "Wacht (materiaal/weer)", value: String(waitingJobs), href: "/jobs", ...(waitingJobs > 0 ? { highlight: "amber" } : {}) },
     {
-      label: "Openstaand factuurbedrag",
+      label: "Openstaand bedrag",
       value: `€${Number(openInvoices._sum.totalAmount ?? 0).toLocaleString("nl-NL", { minimumFractionDigits: 0 })}`,
       href: "/invoices",
     },
-    { label: "Facturen open", value: String(openInvoices._count), href: "/invoices" },
+    {
+      label: "Te laat facturen",
+      value: String(overdueInvoices),
+      href: "/invoices?filter=overdue",
+      ...(overdueInvoices > 0 ? { highlight: "red" } : {}),
+    },
   ];
 
   return (
@@ -121,9 +130,19 @@ export default async function DashboardPage() {
       {/* KPIs */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
-          <Link key={item.label} href={item.href} className="rounded-xl border border-slate-200 bg-white p-4 hover:border-[var(--accent)] transition">
-            <p className="text-xs text-slate-500">{item.label}</p>
-            <p className="mt-2 text-3xl font-semibold text-[var(--primary)]">{item.value}</p>
+          <Link
+            key={item.label}
+            href={item.href}
+            className={`rounded-xl border p-4 transition hover:opacity-90 ${
+              item.highlight === "red"
+                ? "border-red-200 bg-red-50"
+                : item.highlight === "amber"
+                ? "border-amber-200 bg-amber-50"
+                : "border-slate-200 bg-white hover:border-[var(--accent)]"
+            }`}
+          >
+            <p className={`text-xs ${item.highlight === "red" ? "text-red-600" : item.highlight === "amber" ? "text-amber-600" : "text-slate-500"}`}>{item.label}</p>
+            <p className={`mt-2 text-3xl font-semibold ${item.highlight === "red" ? "text-red-700" : item.highlight === "amber" ? "text-amber-700" : "text-[var(--primary)]"}`}>{item.value}</p>
           </Link>
         ))}
       </section>

@@ -154,7 +154,10 @@ export default async function JobsPage({ searchParams }: Props) {
           <h2 className="font-semibold text-[var(--primary)]">Actieve werkbonnen</h2>
         </div>
         {active.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">Geen actieve werkbonnen.</p>
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">Geen actieve werkbonnen</p>
+            <p className="mt-1 text-xs text-slate-400">Maak een werkbon vanuit een geaccepteerde offerte, of gebruik het formulier hierboven.</p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {active.map((j) => (

@@ -238,6 +238,7 @@ model Lead {
   status      LeadStatus  @default(NEW)
   source      String?
   description String?
+  followUpAt  DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

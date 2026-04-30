@@ -28,6 +28,7 @@ async function updateLead(formData: FormData) {
   const session = await getAppSession();
   if (!session.isAuthenticated || !isDatabaseReady()) return;
   const id = String(formData.get("id") ?? "");
+  const followUpRaw = String(formData.get("followUpAt") ?? "");
   await db.lead.updateMany({
     where: { id, companyId: session.companyId },
     data: {
@@ -41,7 +42,22 @@ async function updateLead(formData: FormData) {
       status: String(formData.get("status") ?? "NEW") as never,
       source: String(formData.get("source") ?? "") || null,
       description: String(formData.get("description") ?? "") || null,
+      followUpAt: followUpRaw ? new Date(followUpRaw) : null,
     },
+  });
+  revalidatePath(`/leads/${id}`);
+  revalidatePath("/leads");
+}
+
+async function quickStatus(formData: FormData) {
+  "use server";
+  const session = await getAppSession();
+  if (!session.isAuthenticated || !isDatabaseReady()) return;
+  const id = String(formData.get("id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  await db.lead.updateMany({
+    where: { id, companyId: session.companyId },
+    data: { status: status as never },
   });
   revalidatePath(`/leads/${id}`);
   revalidatePath("/leads");
@@ -116,7 +132,7 @@ export default async function LeadDetailPage({ params }: Props) {
             {STATUS_OPTIONS.find(s => s.value === lead.status)?.label ?? lead.status}
           </span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {!lead.customerId && (
             <form action={convertToCustomer} className="flex items-center gap-2">
               <input type="hidden" name="id" value={lead.id} />
@@ -137,6 +153,22 @@ export default async function LeadDetailPage({ params }: Props) {
           </form>
         </div>
       </div>
+
+      {/* Quick status buttons */}
+      <section className="rounded-xl border border-slate-200 bg-white px-5 py-3">
+        <p className="mb-2 text-xs font-medium text-slate-500">Snelle statuswijziging</p>
+        <div className="flex flex-wrap gap-2">
+          {STATUS_OPTIONS.filter(s => s.value !== lead.status).map(s => (
+            <form key={s.value} action={quickStatus}>
+              <input type="hidden" name="id" value={lead.id} />
+              <input type="hidden" name="status" value={s.value} />
+              <button type="submit" className={`rounded-full px-3 py-1 text-xs font-medium cursor-pointer border hover:opacity-80 ${STATUS_COLORS[s.value] ?? "bg-slate-100 text-slate-500"}`}>
+                → {s.label}
+              </button>
+            </form>
+          ))}
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Edit form */}
@@ -164,6 +196,15 @@ export default async function LeadDetailPage({ params }: Props) {
               ))}
             </select>
             <input name="source" defaultValue={lead.source ?? ""} placeholder="Bron" className="input md:col-span-2" />
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs text-slate-500">Opvolgdatum (optioneel)</label>
+              <input
+                name="followUpAt"
+                type="date"
+                defaultValue={lead.followUpAt ? new Date(lead.followUpAt).toISOString().slice(0, 10) : ""}
+                className="input"
+              />
+            </div>
             <textarea name="description" defaultValue={lead.description ?? ""} placeholder="Omschrijving" className="input md:col-span-2" rows={3} />
             <button type="submit" className="btn-primary md:col-span-2">Opslaan</button>
           </form>
@@ -191,6 +232,15 @@ export default async function LeadDetailPage({ params }: Props) {
                   </Link>
                 ))}
               </div>
+            </section>
+          )}
+
+          {lead.followUpAt && (
+            <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-xs font-semibold text-amber-700">Opvolgdatum</p>
+              <p className="mt-1 text-sm text-amber-800">
+                {new Date(lead.followUpAt).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" })}
+              </p>
             </section>
           )}
 

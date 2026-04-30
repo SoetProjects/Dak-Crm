@@ -127,7 +127,10 @@ export default async function LeadsPage({ searchParams }: Props) {
       {/* List */}
       <section className="rounded-xl border border-slate-200 bg-white">
         {leads.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">Nog geen leads.</p>
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">Nog geen leads</p>
+            <p className="mt-1 text-xs text-slate-400">Maak je eerste lead aan via het formulier hierboven.</p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {leads.map((lead) => (
@@ -143,6 +146,11 @@ export default async function LeadsPage({ searchParams }: Props) {
                   </p>
                   {lead.customer && (
                     <p className="mt-0.5 text-xs text-slate-400">Klant: {lead.customer.name}</p>
+                  )}
+                  {lead.followUpAt && (
+                    <p className={`mt-0.5 text-xs font-medium ${new Date(lead.followUpAt) < new Date() ? "text-red-500" : "text-amber-600"}`}>
+                      Opvolgen: {new Date(lead.followUpAt).toLocaleDateString("nl-NL")}
+                    </p>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">

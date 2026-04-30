@@ -116,7 +116,10 @@ export default async function QuotesPage({ searchParams }: Props) {
       {/* List */}
       <section className="rounded-xl border border-slate-200 bg-white">
         {quotes.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">Nog geen offertes.</p>
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">Nog geen offertes</p>
+            <p className="mt-1 text-xs text-slate-400">Maak een offerte vanuit een klantpagina, of gebruik het formulier hierboven.</p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {quotes.map((q) => (

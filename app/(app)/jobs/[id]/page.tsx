@@ -167,6 +167,7 @@ export default async function JobDetailPage({ params }: Props) {
     include: {
       customer: { select: { id: true, name: true, phone: true } },
       quote: { select: { id: true, quoteNumber: true } },
+      invoices: { select: { id: true, invoiceNumber: true, status: true }, orderBy: { createdAt: "desc" }, take: 1 },
       jobNotes: {
         include: { author: { select: { firstName: true, lastName: true } } },
         orderBy: { createdAt: "asc" },
@@ -414,13 +415,32 @@ export default async function JobDetailPage({ params }: Props) {
             {job.completedAt && <p>Afgerond: {job.completedAt.toLocaleDateString("nl-NL")}</p>}
           </section>
 
-          {/* Create invoice */}
-          <Link
-            href={`/invoices?jobId=${job.id}&customerId=${job.customer.id}`}
-            className="block w-full text-center btn-secondary text-sm"
-          >
-            Factuur aanmaken
-          </Link>
+          {/* Invoice section */}
+          {job.invoices.length > 0 ? (
+            <section className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <p className="text-xs font-semibold text-green-700">Factuur</p>
+              <Link href={`/invoices/${job.invoices[0].id}`} className="mt-1 block text-sm text-green-800 hover:underline font-medium">
+                {job.invoices[0].invoiceNumber}
+              </Link>
+              <span className={`mt-1 inline-block text-xs ${
+                job.invoices[0].status === "PAID" ? "text-green-600" :
+                job.invoices[0].status === "OVERDUE" ? "text-red-600" :
+                "text-slate-500"
+              }`}>
+                {job.invoices[0].status === "DRAFT" ? "Concept" :
+                 job.invoices[0].status === "SENT" ? "Verzonden" :
+                 job.invoices[0].status === "PAID" ? "Betaald" :
+                 job.invoices[0].status === "OVERDUE" ? "Te laat" : "Geannuleerd"}
+              </span>
+            </section>
+          ) : (
+            <Link
+              href={`/invoices?jobId=${job.id}&customerId=${job.customer.id}`}
+              className="block w-full text-center btn-secondary text-sm"
+            >
+              Factuur aanmaken
+            </Link>
+          )}
         </div>
       </div>
     </div>

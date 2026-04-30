@@ -100,7 +100,10 @@ export default async function CustomersPage() {
       {/* List */}
       <section className="rounded-xl border border-slate-200 bg-white">
         {customers.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">Nog geen klanten.</p>
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">Nog geen klanten</p>
+            <p className="mt-1 text-xs text-slate-400">Maak je eerste klant aan via het formulier hierboven, of converteer een lead.</p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {customers.map((c) => (

@@ -20,6 +20,20 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-slate-100 text-slate-500",
 };
 
+const FILTER_STATUSES: Record<string, string[]> = {
+  open:     ["DRAFT", "SENT"],
+  overdue:  ["OVERDUE"],
+  paid:     ["PAID"],
+  all:      [],
+};
+
+const FILTER_LABELS: Array<{ key: string; label: string }> = [
+  { key: "all",     label: "Alle" },
+  { key: "open",    label: "Open" },
+  { key: "overdue", label: "Te laat" },
+  { key: "paid",    label: "Betaald" },
+];
+
 async function createInvoice(formData: FormData) {
   "use server";
   const session = await getAppSession();
@@ -94,7 +108,7 @@ async function createInvoice(formData: FormData) {
   redirect(`/invoices/${invoice.id}`);
 }
 
-type SearchParams = { jobId?: string; customerId?: string };
+type SearchParams = { jobId?: string; customerId?: string; filter?: string };
 type Props = { searchParams: Promise<SearchParams> };
 
 export default async function InvoicesPage({ searchParams }: Props) {
@@ -111,26 +125,29 @@ export default async function InvoicesPage({ searchParams }: Props) {
   }
 
   await ensureCompany(session.companyId);
-  const [invoices, customers, jobs] = await Promise.all([
-    db.invoice.findMany({
-      where: { companyId: session.companyId },
-      include: { customer: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-    }),
-    db.customer.findMany({
-      where: { companyId: session.companyId, isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    db.job.findMany({
-      where: {
-        companyId: session.companyId,
-        status: { notIn: ["CANCELLED"] },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, jobNumber: true, title: true, customerId: true },
-    }),
-  ]);
+
+  const activeFilter = FILTER_STATUSES[sp.filter ?? "all"] !== undefined ? (sp.filter ?? "all") : "all";
+  const statusFilter = FILTER_STATUSES[activeFilter];
+
+  // Sequential queries: Supabase transaction pooler uses connection_limit=1
+  const invoices = await db.invoice.findMany({
+    where: {
+      companyId: session.companyId,
+      ...(statusFilter && statusFilter.length > 0 ? { status: { in: statusFilter as never[] } } : {}),
+    },
+    include: { customer: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const customers = await db.customer.findMany({
+    where: { companyId: session.companyId, isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+  const jobs = await db.job.findMany({
+    where: { companyId: session.companyId, status: { notIn: ["CANCELLED"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, jobNumber: true, title: true, customerId: true },
+  });
 
   const openTotal = invoices
     .filter(i => i.status === "SENT" || i.status === "OVERDUE")
@@ -138,12 +155,28 @@ export default async function InvoicesPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--primary)]">Facturen</h1>
           <p className="mt-1 text-sm text-slate-500">
             {invoices.length} facturen &middot; Openstaand: €{openTotal.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}
           </p>
+        </div>
+        {/* Filter tabs */}
+        <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          {FILTER_LABELS.map(f => (
+            <Link
+              key={f.key}
+              href={f.key === "all" ? "/invoices" : `/invoices?filter=${f.key}`}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                activeFilter === f.key
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {f.label}
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -171,7 +204,16 @@ export default async function InvoicesPage({ searchParams }: Props) {
       {/* List */}
       <section className="rounded-xl border border-slate-200 bg-white">
         {invoices.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">Nog geen facturen.</p>
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">
+              {activeFilter === "all" ? "Nog geen facturen" : "Geen facturen in deze categorie"}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {activeFilter === "all"
+                ? "Maak een factuur vanuit een werkbon via het formulier hierboven."
+                : "Probeer een andere filter."}
+            </p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {invoices.map((inv) => (
