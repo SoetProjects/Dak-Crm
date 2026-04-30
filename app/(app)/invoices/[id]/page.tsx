@@ -123,6 +123,14 @@ export default async function InvoiceDetailPage({ params }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/invoices/${invoice.id}/print`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary text-sm"
+          >
+            Print / PDF
+          </Link>
           {invoice.status === "DRAFT" && (
             <form action={setStatus}>
               <input type="hidden" name="id" value={invoice.id} />

@@ -21,6 +21,13 @@ const STATUS_COLORS: Record<string, string> = {
   EXPIRED: "bg-orange-50 text-orange-600",
 };
 
+const QUOTE_FILTER_TABS = [
+  { key: "all",      label: "Alle",         statuses: [] as string[] },
+  { key: "open",     label: "Open",         statuses: ["DRAFT", "SENT"] },
+  { key: "accepted", label: "Geaccepteerd", statuses: ["ACCEPTED"] },
+  { key: "rejected", label: "Afgewezen",    statuses: ["REJECTED", "EXPIRED"] },
+];
+
 async function createQuote(formData: FormData) {
   "use server";
   const session = await getAppSession();
@@ -53,7 +60,7 @@ async function createQuote(formData: FormData) {
   redirect(`/quotes/${quote.id}`);
 }
 
-type SearchParams = { customerId?: string };
+type SearchParams = { customerId?: string; filter?: string };
 type Props = { searchParams: Promise<SearchParams> };
 
 export default async function QuotesPage({ searchParams }: Props) {
@@ -70,25 +77,45 @@ export default async function QuotesPage({ searchParams }: Props) {
   }
 
   await ensureCompany(session.companyId);
-  const [quotes, customers] = await Promise.all([
-    db.quote.findMany({
-      where: { companyId: session.companyId },
-      include: { customer: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-    }),
-    db.customer.findMany({
-      where: { companyId: session.companyId, isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-  ]);
+
+  const activeFilter = QUOTE_FILTER_TABS.find(f => f.key === sp.filter) ?? QUOTE_FILTER_TABS[0];
+
+  // Sequential queries for Supabase pooler compatibility
+  const quotes = await db.quote.findMany({
+    where: {
+      companyId: session.companyId,
+      ...(activeFilter.statuses.length > 0 ? { status: { in: activeFilter.statuses as never[] } } : {}),
+    },
+    include: { customer: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const customers = await db.customer.findMany({
+    where: { companyId: session.companyId, isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--primary)]">Offertes</h1>
           <p className="mt-1 text-sm text-slate-500">{quotes.length} offertes</p>
+        </div>
+        <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          {QUOTE_FILTER_TABS.map(f => (
+            <Link
+              key={f.key}
+              href={f.key === "all" ? "/quotes" : `/quotes?filter=${f.key}`}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                activeFilter.key === f.key
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {f.label}
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -117,8 +144,14 @@ export default async function QuotesPage({ searchParams }: Props) {
       <section className="rounded-xl border border-slate-200 bg-white">
         {quotes.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="text-sm font-medium text-slate-600">Nog geen offertes</p>
-            <p className="mt-1 text-xs text-slate-400">Maak een offerte vanuit een klantpagina, of gebruik het formulier hierboven.</p>
+            <p className="text-sm font-medium text-slate-600">
+              {activeFilter.key === "all" ? "Nog geen offertes" : "Geen offertes in deze categorie"}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {activeFilter.key === "all"
+                ? "Maak een offerte vanuit een klantpagina, of gebruik het formulier hierboven."
+                : "Probeer een andere filter."}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">

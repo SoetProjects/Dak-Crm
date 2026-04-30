@@ -171,6 +171,7 @@ export default async function QuoteDetailPage({ params }: Props) {
     include: {
       customer: { select: { id: true, name: true } },
       lines: { orderBy: { sortOrder: "asc" } },
+      jobs: { select: { id: true, jobNumber: true, status: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!quote) return notFound();
@@ -223,10 +224,19 @@ export default async function QuoteDetailPage({ params }: Props) {
             </form>
           )}
           {quote.status === "ACCEPTED" && (
-            <form action={createJobFromQuote}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <button type="submit" className="btn-primary text-sm">Werkbon aanmaken</button>
-            </form>
+            quote.jobs.length > 0 ? (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm">
+                <p className="text-xs font-semibold text-green-700">Werkbon aangemaakt</p>
+                <Link href={`/jobs/${quote.jobs[0].id}`} className="font-medium text-green-800 hover:underline">
+                  {quote.jobs[0].jobNumber}
+                </Link>
+              </div>
+            ) : (
+              <form action={createJobFromQuote}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <button type="submit" className="btn-primary text-sm">Werkbon aanmaken</button>
+              </form>
+            )
           )}
           {quote.status !== "REJECTED" && (
             <form action={updateStatus}>
@@ -335,9 +345,15 @@ export default async function QuoteDetailPage({ params }: Props) {
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-400 space-y-1">
             <p>Aangemaakt: {quote.createdAt.toLocaleDateString("nl-NL")}</p>
-            {quote.validUntil && (
-              <p>Geldig tot: {new Date(quote.validUntil).toLocaleDateString("nl-NL")}</p>
-            )}
+            {quote.validUntil && (() => {
+              const expired = new Date(quote.validUntil) < new Date();
+              return (
+                <p className={expired ? "text-red-500 font-medium" : ""}>
+                  Geldig tot: {new Date(quote.validUntil).toLocaleDateString("nl-NL")}
+                  {expired ? " (verlopen)" : ""}
+                </p>
+              );
+            })()}
           </section>
         </div>
       </div>

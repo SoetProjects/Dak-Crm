@@ -54,12 +54,21 @@ async function createLead(formData: FormData) {
   revalidatePath("/leads");
 }
 
-type SearchParams = { alles?: string };
+const FILTER_TABS = [
+  { key: "actief",    label: "Actief" },
+  { key: "nieuw",     label: "Nieuw" },
+  { key: "benaderd",  label: "Benaderd" },
+  { key: "afspraak",  label: "Afspraak" },
+  { key: "overdue",   label: "Te laat" },
+  { key: "all",       label: "Alle" },
+];
+
+type SearchParams = { filter?: string };
 type Props = { searchParams: Promise<SearchParams> };
 
 export default async function LeadsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const showAll = sp.alles === "1";
+  const filter = FILTER_TABS.some(f => f.key === sp.filter) ? (sp.filter ?? "actief") : "actief";
   const session = await getAppSession();
 
   if (!isDatabaseReady()) {
@@ -73,14 +82,20 @@ export default async function LeadsPage({ searchParams }: Props) {
 
   await ensureCompany(session.companyId);
 
+  const now = new Date();
+  const statusMap: Record<string, object> = {
+    actief:   { status: { notIn: ["LOST", "WON"] } },
+    nieuw:    { status: "NEW" },
+    benaderd: { status: "CONTACTED" },
+    afspraak: { status: "APPOINTMENT_PLANNED" },
+    overdue:  { followUpAt: { lt: now }, status: { notIn: ["WON", "LOST"] } },
+    all:      {},
+  };
+
   const leads = await db.lead.findMany({
-    where: {
-      companyId: session.companyId,
-      // Hide archived (LOST/WON) by default unless user requests all
-      ...(!showAll ? { status: { notIn: ["LOST", "WON"] } } : {}),
-    },
+    where: { companyId: session.companyId, ...statusMap[filter] },
     include: { customer: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ followUpAt: "asc" }, { createdAt: "desc" }],
   });
 
   return (
@@ -88,14 +103,24 @@ export default async function LeadsPage({ searchParams }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--primary)]">Leads</h1>
-          <p className="mt-1 text-sm text-slate-500">{leads.length} leads {showAll ? "(alle)" : "(actief)"}</p>
+          <p className="mt-1 text-sm text-slate-500">{leads.length} leads</p>
         </div>
-        <Link
-          href={showAll ? "/leads" : "/leads?alles=1"}
-          className="text-sm text-slate-500 hover:underline"
-        >
-          {showAll ? "Verberg verloren/gewonnen" : "Toon alle leads"}
-        </Link>
+        {/* Filter tabs */}
+        <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          {FILTER_TABS.map(f => (
+            <Link
+              key={f.key}
+              href={f.key === "actief" ? "/leads" : `/leads?filter=${f.key}`}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                filter === f.key
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }${f.key === "overdue" && filter !== "overdue" ? " text-orange-600" : ""}`}
+            >
+              {f.label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Create form */}
