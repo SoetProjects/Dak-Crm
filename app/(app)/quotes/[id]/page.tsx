@@ -101,6 +101,16 @@ async function deleteLine(formData: FormData) {
   revalidatePath(`/quotes/${quoteId}`);
 }
 
+// Maps lead.requestType to the closest job.jobType value
+const REQUEST_TO_JOB_TYPE: Record<string, string> = {
+  LEAK:       "LEAK",
+  RENOVATION: "ROOF_RENOVATION",
+  INSPECTION: "INSPECTION",
+  BITUMEN_ROOF: "BITUMEN_ROOF",
+  ROOF_TERRACE: "ROOF_TERRACE",
+  OTHER:      "OTHER",
+};
+
 async function createJobFromQuote(formData: FormData) {
   "use server";
   const session = await getAppSession();
@@ -110,6 +120,18 @@ async function createJobFromQuote(formData: FormData) {
     where: { id: quoteId, companyId: session.companyId },
   });
   if (!quote) return;
+
+  // Derive jobType from the linked lead's requestType when available
+  let jobType = "OTHER";
+  if (quote.leadId) {
+    const lead = await db.lead.findFirst({
+      where: { id: quote.leadId },
+      select: { requestType: true },
+    });
+    if (lead?.requestType) {
+      jobType = REQUEST_TO_JOB_TYPE[lead.requestType] ?? "OTHER";
+    }
+  }
 
   const year = new Date().getFullYear();
   const last = await db.job.findFirst({
@@ -126,7 +148,7 @@ async function createJobFromQuote(formData: FormData) {
       quoteId: quote.id,
       jobNumber,
       title: quote.title,
-      jobType: "OTHER",
+      jobType: jobType as never,
       status: "PLANNED",
     },
   });
@@ -178,6 +200,14 @@ export default async function QuoteDetailPage({ params }: Props) {
 
         {/* Status buttons */}
         <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/quotes/${id}/print`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary text-sm"
+          >
+            Print / PDF
+          </Link>
           {quote.status === "DRAFT" && (
             <form action={updateStatus}>
               <input type="hidden" name="id" value={quote.id} />

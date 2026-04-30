@@ -151,7 +151,7 @@ export default async function InvoicesPage({ searchParams }: Props) {
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="mb-4 font-semibold text-[var(--primary)]">Nieuwe factuur</h2>
         <form action={createInvoice} className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <select name="customerId" required className="input">
+          <select name="customerId" required className="input" defaultValue={sp.customerId ?? ""}>
             <option value="">Klant kiezen *</option>
             {customers.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>

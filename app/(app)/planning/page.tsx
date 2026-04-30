@@ -126,9 +126,15 @@ export default async function PlanningPage({ searchParams }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/planning?week=${prevWeek}`} className="btn-secondary text-sm">← Vorige week</Link>
+          <Link href={`/planning?week=${prevWeek}`} className="btn-secondary text-sm">
+            <span className="hidden sm:inline">← Vorige week</span>
+            <span className="sm:hidden">←</span>
+          </Link>
           <Link href="/planning" className="btn-secondary text-sm">Vandaag</Link>
-          <Link href={`/planning?week=${nextWeek}`} className="btn-secondary text-sm">Volgende week →</Link>
+          <Link href={`/planning?week=${nextWeek}`} className="btn-secondary text-sm">
+            <span className="hidden sm:inline">Volgende week →</span>
+            <span className="sm:hidden">→</span>
+          </Link>
         </div>
       </div>
 
@@ -145,7 +151,7 @@ export default async function PlanningPage({ searchParams }: Props) {
           </select>
           <input name="startAt" type="datetime-local" className="input" required />
           <input name="endAt" type="datetime-local" className="input" required />
-          <button type="submit" className="btn-primary md:col-span-4 md:w-auto">Toevoegen</button>
+          <button type="submit" className="btn-primary w-full md:col-span-4 md:w-auto">Toevoegen</button>
         </form>
       </section>
 

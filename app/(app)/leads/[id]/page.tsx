@@ -65,11 +65,13 @@ async function convertToCustomer(formData: FormData) {
   const session = await getAppSession();
   if (!session.isAuthenticated || !isDatabaseReady()) return;
   const id = String(formData.get("id") ?? "");
+  const customerType = String(formData.get("customerType") ?? "PRIVATE") as never;
   const lead = await db.lead.findFirst({ where: { id, companyId: session.companyId } });
   if (!lead) return;
   const customer = await db.customer.create({
     data: {
       companyId: session.companyId,
+      customerType,
       name: lead.name,
       phone: lead.phone,
       email: lead.email,
@@ -116,9 +118,15 @@ export default async function LeadDetailPage({ params }: Props) {
         </div>
         <div className="flex gap-2">
           {!lead.customerId && (
-            <form action={convertToCustomer}>
+            <form action={convertToCustomer} className="flex items-center gap-2">
               <input type="hidden" name="id" value={lead.id} />
-              <button type="submit" className="btn-secondary text-sm">Omzetten naar klant</button>
+              <select name="customerType" className="input text-sm py-1.5 h-auto">
+                <option value="PRIVATE">Particulier</option>
+                <option value="BUSINESS">Zakelijk</option>
+                <option value="HOA">VvE</option>
+                <option value="CONTRACTOR">Aannemer</option>
+              </select>
+              <button type="submit" className="btn-secondary text-sm shrink-0">Omzetten naar klant</button>
             </form>
           )}
           <form action={archiveLead}>

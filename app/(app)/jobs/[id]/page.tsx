@@ -416,7 +416,7 @@ export default async function JobDetailPage({ params }: Props) {
 
           {/* Create invoice */}
           <Link
-            href={`/invoices?jobId=${job.id}`}
+            href={`/invoices?jobId=${job.id}&customerId=${job.customer.id}`}
             className="block w-full text-center btn-secondary text-sm"
           >
             Factuur aanmaken

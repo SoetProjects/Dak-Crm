@@ -48,66 +48,50 @@ export default async function DashboardPage() {
   const today = new Date();
   const todayStart = startOfDay(today);
   const todayEnd = endOfDay(today);
+  const cid = session.companyId;
 
-  const [
-    jobsToday,
-    openLeadsCount,
-    openQuotesCount,
-    activeJobs,
-    openInvoices,
-    waitingJobs,
-    todayPlanning,
-  ] = await Promise.all([
-    db.job.findMany({
-      where: {
-        companyId: session.companyId,
-        scheduledStart: { gte: todayStart, lte: todayEnd },
-        status: { notIn: ["COMPLETED", "CANCELLED"] },
-      },
-      include: { customer: { select: { name: true } } },
-      orderBy: { scheduledStart: "asc" },
-    }),
-    db.lead.count({
-      where: {
-        companyId: session.companyId,
-        status: { notIn: ["WON", "LOST"] },
-      },
-    }),
-    db.quote.count({
-      where: {
-        companyId: session.companyId,
-        status: { in: ["DRAFT", "SENT"] },
-      },
-    }),
-    db.job.count({
-      where: {
-        companyId: session.companyId,
-        status: { in: ["PLANNED", "IN_PROGRESS", "WAITING_FOR_MATERIAL", "WAITING_FOR_WEATHER"] },
-      },
-    }),
-    db.invoice.aggregate({
-      where: {
-        companyId: session.companyId,
-        status: { in: ["SENT", "OVERDUE"] },
-      },
-      _sum: { totalAmount: true },
-      _count: true,
-    }),
-    db.job.count({
-      where: {
-        companyId: session.companyId,
-        status: { in: ["WAITING_FOR_MATERIAL", "WAITING_FOR_WEATHER"] },
-      },
-    }),
-    db.planningItem.findMany({
-      where: {
-        companyId: session.companyId,
-        startAt: { gte: todayStart, lte: todayEnd },
-      },
-      include: { job: { include: { customer: { select: { name: true } } } } },
-      orderBy: { startAt: "asc" },
-    }),
-  ]);
+  // Sequential queries: Supabase transaction pooler uses connection_limit=1,
+  // so parallel queries compete for the same connection and time out.
+  const jobsToday = await db.job.findMany({
+    where: {
+      companyId: cid,
+      scheduledStart: { gte: todayStart, lte: todayEnd },
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
+    },
+    include: { customer: { select: { name: true } } },
+    orderBy: { scheduledStart: "asc" },
+  });
+
+  const openLeadsCount = await db.lead.count({
+    where: { companyId: cid, status: { notIn: ["WON", "LOST"] } },
+  });
+
+  const openQuotesCount = await db.quote.count({
+    where: { companyId: cid, status: { in: ["DRAFT", "SENT"] } },
+  });
+
+  const activeJobs = await db.job.count({
+    where: {
+      companyId: cid,
+      status: { in: ["PLANNED", "IN_PROGRESS", "WAITING_FOR_MATERIAL", "WAITING_FOR_WEATHER"] },
+    },
+  });
+
+  const openInvoices = await db.invoice.aggregate({
+    where: { companyId: cid, status: { in: ["SENT", "OVERDUE"] } },
+    _sum: { totalAmount: true },
+    _count: true,
+  });
+
+  const waitingJobs = await db.job.count({
+    where: { companyId: cid, status: { in: ["WAITING_FOR_MATERIAL", "WAITING_FOR_WEATHER"] } },
+  });
+
+  const todayPlanning = await db.planningItem.findMany({
+    where: { companyId: cid, startAt: { gte: todayStart, lte: todayEnd } },
+    include: { job: { include: { customer: { select: { name: true } } } } },
+    orderBy: { startAt: "asc" },
+  });
 
   const stats = [
     { label: "Jobs vandaag", value: String(jobsToday.length), href: "/jobs" },

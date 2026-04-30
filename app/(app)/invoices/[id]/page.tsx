@@ -130,6 +130,13 @@ export default async function InvoiceDetailPage({ params }: Props) {
               <button className="btn-secondary text-sm">Verzenden</button>
             </form>
           )}
+          {invoice.status === "SENT" && (
+            <form action={setStatus}>
+              <input type="hidden" name="id" value={invoice.id} />
+              <input type="hidden" name="status" value="OVERDUE" />
+              <button className="rounded-lg bg-orange-500 px-3 py-1.5 text-sm text-white hover:bg-orange-600">Te laat markeren</button>
+            </form>
+          )}
           {(invoice.status === "SENT" || invoice.status === "OVERDUE") && (
             <form action={setStatus}>
               <input type="hidden" name="id" value={invoice.id} />

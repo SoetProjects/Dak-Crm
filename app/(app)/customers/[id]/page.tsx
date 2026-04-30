@@ -5,6 +5,13 @@ import { db } from "@/lib/db/prisma";
 import { isDatabaseReady } from "@/lib/db/db-ready";
 import { getAppSession } from "@/lib/auth/session";
 
+const CUSTOMER_TYPE_LABELS: Record<string, string> = {
+  PRIVATE: "Particulier",
+  BUSINESS: "Zakelijk",
+  HOA: "VvE",
+  CONTRACTOR: "Aannemer",
+};
+
 const JOB_STATUS_LABELS: Record<string, string> = {
   PLANNED: "Gepland",
   IN_PROGRESS: "In uitvoering",
@@ -22,6 +29,7 @@ async function updateCustomer(formData: FormData) {
   await db.customer.updateMany({
     where: { id, companyId: session.companyId },
     data: {
+      customerType: String(formData.get("customerType") ?? "PRIVATE") as never,
       name: String(formData.get("name") ?? ""),
       contactPerson: String(formData.get("contactPerson") ?? "") || null,
       phone: String(formData.get("phone") ?? "") || null,
@@ -83,7 +91,12 @@ export default async function CustomerDetailPage({ params }: Props) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link href="/customers" className="text-sm text-slate-500 hover:underline">← Klanten</Link>
-          <h1 className="mt-1 text-2xl font-semibold text-[var(--primary)]">{customer.name}</h1>
+          <div className="mt-1 flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-[var(--primary)]">{customer.name}</h1>
+            <span className="badge bg-slate-100 text-slate-600 text-xs">
+              {CUSTOMER_TYPE_LABELS[customer.customerType] ?? customer.customerType}
+            </span>
+          </div>
           <p className="text-sm text-slate-500">{customer.email ?? customer.phone ?? ""}</p>
         </div>
         <div className="flex gap-2">

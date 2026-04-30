@@ -18,9 +18,9 @@ export default async function AppLayout({
     <div className="min-h-screen bg-slate-50 md:flex">
       <AppSidebar />
       <main className="flex-1">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:px-6">
-          <div>
-            <p className="text-sm font-medium text-[var(--primary)]">{session.email}</p>
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-[var(--primary)] truncate">{session.email}</p>
             <p className="text-xs text-slate-500">
               {session.isDemo ? "Demo sessie" : "Ingelogd"}
             </p>
